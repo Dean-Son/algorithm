@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>WebGL 예제</title>
+    <style>
+      body {
+        margin: 0;
+        padding: 0;
+        overflow: hidden;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        height: 100vh;
+        background-color: #f0f0f0;
+      }
+      canvas {
+        border: 1px solid #333;
+        background-color: #fff;
+      }
+    </style>
+  </head>
+  <body>
+    <canvas id="glcanvas" width="800" height="600"></canvas>
+
+    <script>
+      // WebGL 초기화 함수
+      function initWebGL() {
+        const canvas = document.getElementById("glcanvas");
+        // WebGL 컨텍스트 가져오기
+        const gl =
+          canvas.getContext("webgl") || canvas.getContext("experimental-webgl");
+
+        // WebGL을 지원하지 않는 경우
+        if (!gl) {
+          alert("WebGL을 지원하지 않는 브라우저입니다.");
+          return null;
+        }
+
+        return gl;
+      }
+
+      // 셰이더 초기화 함수
+      function initShaders(gl) {
+        // 버텍스 셰이더 소스
+        const vsSource = `
+                attribute vec4 aVertexPosition;
+                attribute vec4 aVertexColor;
+                varying lowp vec4 vColor;
+                void main() {
+                    gl_Position = aVertexPosition;
+                    vColor = aVertexColor;
+                }
+            `;
+
+        // 프래그먼트 셰이더 소스
+        const fsSource = `
+                varying lowp vec4 vColor;
+                void main() {
+                    gl_FragColor = vColor;
+                }
+            `;
+
+        // 셰이더 컴파일 함수
+        function compileShader(gl, source, type) {
+          const shader = gl.createShader(type);
+          gl.shaderSource(shader, source);
+          gl.compileShader(shader);
+
+          // 셰이더 컴파일 오류 확인
+          if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+            alert("셰이더 컴파일 오류: " + gl.getShaderInfoLog(shader));
+            gl.deleteShader(shader);
+            return null;
+          }
+          return shader;
+        }
+
+        // 셰이더 컴파일
+        const vertexShader = compileShader(gl, vsSource, gl.VERTEX_SHADER);
+        const fragmentShader = compileShader(gl, fsSource, gl.FRAGMENT_SHADER);
+
+        // 셰이더 프로그램 생성
+        const shaderProgram = gl.createProgram();
+        gl.attachShader(shaderProgram, vertexShader);
+        gl.attachShader(shaderProgram, fragmentShader);
+        gl.linkProgram(shaderProgram);
+
+        // 프로그램 링크 오류 확인
+        if (!gl.getProgramParameter(shaderProgram, gl.LINK_STATUS)) {
+          alert(
+            "셰이더 프로그램 링크 오류: " + gl.getProgramInfoLog(shaderProgram)
+          );
+          return null;
+        }
+
+        return shaderProgram;
+      }
+
+      // 버퍼 초기화 함수
+      function initBuffers(gl) {
+        // 삼각형의 위치 데이터
+        const positions = [
+          0.0,
+          0.5,
+          0.0, // 위
+          -0.5,
+          -0.5,
+          0.0, // 왼쪽 아래
+          0.5,
+          -0.5,
+          0.0, // 오른쪽 아래
+        ];
+
+        // 삼각형의 색상 데이터
+        const colors = [
+          1.0,
+          0.0,
+          0.0,
+          1.0, // 빨강
+          0.0,
+          1.0,
+          0.0,
+          1.0, // 초록
+          0.0,
+          0.0,
+          1.0,
+          1.0, // 파랑
+        ];
+
+        // 위치 버퍼 생성
+        const positionBuffer = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
+        gl.bufferData(
+          gl.ARRAY_BUFFER,
+          new Float32Array(positions),
+          gl.STATIC_DRAW
+        );
+
+        // 색상 버퍼 생성
+        const colorBuffer = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, colorBuffer);
+        gl.bufferData(
+          gl.ARRAY_BUFFER,
+          new Float32Array(colors),
+          gl.STATIC_DRAW
+        );
+
+        return {
+          position: positionBuffer,
+          color: colorBuffer,
+        };
+      }
+
+      // 그리기 함수
+      function drawScene(gl, programInfo, buffers) {
+        // 캔버스 지우기
+        gl.clearColor(0.0, 0.0, 0.0, 1.0);
+        gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+
+        // 위치 버퍼 설정
+        gl.bindBuffer(gl.ARRAY_BUFFER, buffers.position);
+        gl.vertexAttribPointer(
+          programInfo.attribLocations.vertexPosition,
+          3, // 좌표당 성분 수
+          gl.FLOAT, // 데이터 타입
+          false, // 정규화 여부
+          0, // stride
+          0 // offset
+        );
+        gl.enableVertexAttribArray(programInfo.attribLocations.vertexPosition);
+
+        // 색상 버퍼 설정
+        gl.bindBuffer(gl.ARRAY_BUFFER, buffers.color);
+        gl.vertexAttribPointer(
+          programInfo.attribLocations.vertexColor,
+          4, // 컬러당 성분 수 (RGBA)
+          gl.FLOAT, // 데이터 타입
+          false, // 정규화 여부
+          0, // stride
+          0 // offset
+        );
+        gl.enableVertexAttribArray(programInfo.attribLocations.vertexColor);
+
+        // 셰이더 프로그램 사용
+        gl.useProgram(programInfo.program);
+
+        // 삼각형 그리기
+        gl.drawArrays(gl.TRIANGLES, 0, 3);
+      }
+
+      // 메인 함수
+      function main() {
+        // WebGL 초기화
+        const gl = initWebGL();
+        if (!gl) {
+          return;
+        }
+
+        // 셰이더 초기화
+        const shaderProgram = initShaders(gl);
+        if (!shaderProgram) {
+          return;
+        }
+
+        // 프로그램 정보 객체
+        const programInfo = {
+          program: shaderProgram,
+          attribLocations: {
+            vertexPosition: gl.getAttribLocation(
+              shaderProgram,
+              "aVertexPosition"
+            ),
+            vertexColor: gl.getAttribLocation(shaderProgram, "aVertexColor"),
+          },
+        };
+
+        // 버퍼 초기화
+        const buffers = initBuffers(gl);
+
+        // 장면 그리기
+        drawScene(gl, programInfo, buffers);
+      }
+
+      // 페이지 로드 시 실행
+      window.onload = main;
+    </script>
+  </body>
+</html>

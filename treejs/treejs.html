@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>tree test 1</title>
+    <!-- <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/0.160.0/three.min.js"></script> -->
+    <style>
+      body {
+        margin: 0;
+      }
+      canvas {
+        display: block;
+      }
+    </style>
+  </head>
+
+  <body>
+    <script type="module">
+      import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js";
+
+      const scene = new THREE.Scene();
+      const camera = new THREE.PerspectiveCamera(
+        100, // field of view
+        window.innerWidth / window.innerHeight, // aspect ratio
+        0.1, // near
+        1000 // far
+      );
+      //Renderer 생성
+      const renderer = new THREE.WebGLRenderer();
+
+      // 랜더링할 곳 크기 설정
+      renderer.setSize(window.innerWidth, window.innerHeight);
+
+      // 랜더링할 곳 추가
+      document.body.appendChild(renderer.domElement);
+
+      // Geometry 생성
+      const geometry = new THREE.BoxGeometry(1, 1, 1); // 가로 세로 높이
+      const material = new THREE.MeshBasicMaterial({ color: 0x00ff00 }); // 색상
+      const cube = new THREE.Mesh(geometry, material); // 메시 생성
+      scene.add(cube); // 씬에 추가
+
+      // 카메라 위치 설정
+      camera.position.z = 5;
+
+      // 렌더링 루프
+      // 화면이 새로고침될 때마다 렌더링
+      function animate() {
+        requestAnimationFrame(animate);
+        cube.rotation.x += 0.01;
+        cube.rotation.y += 0.01;
+        renderer.render(scene, camera);
+      }
+
+      animate();
+    </script>
+  </body>
+</html>
