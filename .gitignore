@@ -11,6 +11,12 @@ node_modules/
 
 # Environment variables
 .env
+.env.local
+
+# User-specific configurations
+*.local.json
+.cursor/mcp.json
+.taskmaster/state.json
 
 # Editor directories and files
 .idea
