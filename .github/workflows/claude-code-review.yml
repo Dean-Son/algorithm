@@ -56,7 +56,7 @@ jobs:
         uses: anthropics/claude-code-action@1
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-          direct_prompt: |
+          prompt: |
             Jira 티켓 ${{ github.event.pull_request.body | grep -o 'CX-[0-9]\+' }}
             과 연관된 PR을 검토합니다.
             
