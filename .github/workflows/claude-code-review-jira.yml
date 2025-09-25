@@ -18,6 +18,13 @@ jobs:
       id-token: write
       
     steps:
+      - name: Jira Login
+        uses: atlassian/gajira-login@v3
+        env:
+          JIRA_BASE_URL: ${{ secrets.JIRA_BASE_URL }}
+          JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
+          JIRA_USER_EMAIL: ${{ secrets.JIRA_USER_EMAIL }}
+          
       - name: Extract Jira Ticket
         id: extract_jira
         run: |
@@ -41,7 +48,7 @@ jobs:
             - PR 링크: ${{ github.event.pull_request.html_url }}
             - Jira 티켓: ${{ steps.extract_jira.outputs.ticket }}
             
-            해당 티켓에 📌 PR 요청 내용을 댓글로 추가해 주세요.
+            지라 해당 티켓에 📌 PR 요청 내용을 댓글로 추가해 주세요.
 
       # ✅ 리뷰 코멘트를 Jira에 남기기
       - name: Claude - Review Submitted
@@ -55,7 +62,7 @@ jobs:
             - 리뷰 상태: ${{ github.event.review.state }}
             - Jira 티켓: ${{ steps.extract_jira.outputs.ticket }}
 
-            해당 티켓에 🔍 리뷰 결과 댓글을 남겨 주세요.
+            지라 해당 티켓에 🔍 리뷰 결과 댓글을 남겨 주세요.
 
       # ✅ PR 코멘트가 추가되면 Jira에 반영
       - name: Claude - PR Comment
@@ -69,7 +76,7 @@ jobs:
             - 내용: ${{ github.event.comment.body }}
             - Jira 티켓: ${{ steps.extract_jira.outputs.ticket }}
 
-            해당 티켓에 추가된 💬 코멘트를 남겨 주세요.
+            지라 해당 티켓에 추가된 💬 코멘트를 남겨 주세요.
 
       # ✅ PR 머지 시 Jira 상태 전환
       - name: Claude - Transition Jira
@@ -82,4 +89,4 @@ jobs:
             - PR 번호: #${{ github.event.pull_request.number }}
             - Jira 티켓: ${{ steps.extract_jira.outputs.ticket }}
 
-            해당 티켓에 💬 관련 코멘트를 남겨 주세요.
+            지라 해당 티켓에 💬 관련 코멘트를 남겨 주세요.
