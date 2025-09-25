@@ -17,6 +17,7 @@ node_modules/
 *.local.json
 .cursor/mcp.json
 .taskmaster/state.json
+.mcp.json
 
 # Editor directories and files
 .idea
