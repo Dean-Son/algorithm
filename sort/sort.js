@@ -9,7 +9,6 @@ var items = [
 
 // value 기준으로 정렬
 items.sort(function (a, b) {
-  console.log(a, b);
   if (a.value > b.value) {
     return 1;
   }

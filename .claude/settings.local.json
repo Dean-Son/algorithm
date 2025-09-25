@@ -7,5 +7,9 @@
     ],
     "deny": [],
     "ask": []
-  }
+  },
+  "enabledMcpjsonServers": [
+    "mcp-atlassian"
+  ],
+  "enableAllProjectMcpServers": true
 }
