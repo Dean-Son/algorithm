@@ -3,13 +3,17 @@
     "allow": [
       "mcp__taskmaster-ai__initialize_project",
       "Bash(git checkout:*)",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)",
+      "Bash(gh pr create:*)",
+      "mcp__mcp-atlassian__jira_add_comment"
     ],
     "deny": [],
     "ask": []
   },
+  "enableAllProjectMcpServers": true,
   "enabledMcpjsonServers": [
     "mcp-atlassian"
-  ],
-  "enableAllProjectMcpServers": true
+  ]
 }
