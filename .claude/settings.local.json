@@ -9,7 +9,8 @@
       "Bash(gh pr create:*)",
       "mcp__mcp-atlassian__jira_add_comment",
       "Bash(gh pr list:*)",
-      "Bash(gh pr ready:*)"
+      "Bash(gh pr ready:*)",
+      "Bash(chmod:*)"
     ],
     "deny": [],
     "ask": []
