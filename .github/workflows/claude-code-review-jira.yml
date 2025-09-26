@@ -1,0 +1,97 @@
+name: Sync PR Activity to Jira
+
+on:
+  pull_request:
+    types: [opened, closed]   # PR 생성, 머지/닫힘
+  pull_request_review:
+    types: [submitted]        # 리뷰 제출
+  issue_comment:
+    types: [created]          # PR 코멘트 추가
+
+jobs:
+  sync-to-jira:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+      issues: read
+      id-token: write
+      
+    steps:
+      - name: Extract Jira Ticket
+        id: extract_jira
+        run: |
+          TICKET=$(echo "${{ github.event.pull_request.body }}" | grep -o 'CX-[0-9]\+' | head -n1)
+          if [ -z "$TICKET" ] && [ "${{ github.event_name }}" = "issue_comment" ]; then
+            PR_BODY=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+              ${{ github.event.issue.pull_request.url }} | jq -r .body)
+            TICKET=$(echo "$PR_BODY" | grep -o 'CX-[0-9]\+' | head -n1)
+          fi
+          echo "ticket=$TICKET" >> $GITHUB_OUTPUT
+
+      # ✅ PR 생성 시 Jira에 기록
+      - name: Claude - PR Opened
+        if: github.event_name == 'pull_request' && github.event.action == 'opened'
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          jira-user-email: ${{ secrets.JIRA_EMAIL }}
+          jira-api-token: ${{ secrets.JIRA_API_TOKEN }}
+          jira-base-url: ${{ secrets.JIRA_BASE_URL }}
+          prompt: |
+            PR이 생성되었습니다.
+            - PR 번호: #${{ github.event.pull_request.number }}
+            - PR 링크: ${{ github.event.pull_request.html_url }}
+            - Jira 티켓: ${{ steps.extract_jira.outputs.ticket }}
+            
+            지라 해당 티켓에 📌 PR 요청 내용을 댓글로 추가해 주세요.
+
+      # ✅ 리뷰 코멘트를 Jira에 남기기
+      - name: Claude - Review Submitted
+        if: github.event_name == 'pull_request_review'
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          jira-user-email: ${{ secrets.JIRA_EMAIL }}
+          jira-api-token: ${{ secrets.JIRA_API_TOKEN }}
+          jira-base-url: ${{ secrets.JIRA_BASE_URL }}
+          prompt: |
+            GitHub PR 리뷰가 제출되었습니다.
+            - 리뷰어: ${{ github.event.review.user.login }}
+            - 리뷰 상태: ${{ github.event.review.state }}
+            - Jira 티켓: ${{ steps.extract_jira.outputs.ticket }}
+
+            지라 해당 티켓에 🔍 리뷰 결과 댓글을 남겨 주세요.
+
+      # ✅ PR 코멘트가 추가되면 Jira에 반영
+      - name: Claude - PR Comment
+        if: github.event_name == 'issue_comment' && github.event.issue.pull_request != null
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          jira-user-email: ${{ secrets.JIRA_EMAIL }}
+          jira-api-token: ${{ secrets.JIRA_API_TOKEN }}
+          jira-base-url: ${{ secrets.JIRA_BASE_URL }}
+          prompt: |
+            GitHub PR 코멘트가 추가되었습니다.
+            - 작성자: ${{ github.event.comment.user.login }}
+            - 내용: ${{ github.event.comment.body }}
+            - Jira 티켓: ${{ steps.extract_jira.outputs.ticket }}
+
+            지라 해당 티켓에 추가된 💬 코멘트를 남겨 주세요.
+
+      # ✅ PR 머지 시 Jira 상태 전환
+      - name: Claude - Transition Jira
+        if: github.event_name == 'pull_request' && github.event.pull_request.merged == true
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          jira-user-email: ${{ secrets.JIRA_EMAIL }}
+          jira-api-token: ${{ secrets.JIRA_API_TOKEN }}
+          jira-base-url: ${{ secrets.JIRA_BASE_URL }}
+          prompt: |
+            GitHub PR이 머지되었습니다.
+            - PR 번호: #${{ github.event.pull_request.number }}
+            - Jira 티켓: ${{ steps.extract_jira.outputs.ticket }}
+
+            지라 해당 티켓에 💬 관련 코멘트를 남겨 주세요.
