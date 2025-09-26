@@ -1,0 +1,2297 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Claude-GitHub-Jira 완전 연동 가이드 - 초보자용</title>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;700;900&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    <style>
+        :root {
+            --primary-color: #2563eb;
+            --secondary-color: #7c3aed;
+            --success-color: #059669;
+            --warning-color: #d97706;
+            --error-color: #dc2626;
+            --claude-color: #ff6b35;
+            --github-color: #24292e;
+            --jira-color: #0052cc;
+            --bg-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 50%, #2563eb 100%);
+            --slide-width: 95vw;
+            --slide-height: 90vh;
+            --text-primary: #1f2937;
+            --text-secondary: #6b7280;
+            --border-radius: 16px;
+            --shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Noto Sans KR', sans-serif;
+            background: var(--bg-gradient);
+            overflow: hidden;
+            height: 100vh;
+        }
+        
+        /* 반응형 설정 */
+        @media (aspect-ratio: 16/9) {
+            :root { --slide-width: 90vw; --slide-height: 85vh; }
+        }
+        
+        @media (aspect-ratio: 4/3) {
+            :root { --slide-width: 85vw; --slide-height: 90vh; }
+        }
+        
+        @media (aspect-ratio: 21/9) {
+            :root { --slide-width: 95vw; --slide-height: 80vh; }
+        }
+        
+        .presentation {
+            width: 100vw;
+            height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+        }
+        
+        .slide {
+            width: var(--slide-width);
+            height: var(--slide-height);
+            background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
+            border-radius: var(--border-radius);
+            box-shadow: var(--shadow);
+            padding: clamp(20px, 3vw, 40px);
+            display: none;
+            position: relative;
+            overflow-y: auto;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        
+        .slide.active {
+            display: block;
+            animation: slideIn 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        
+        @keyframes slideIn {
+            from { transform: translateX(100px); opacity: 0; scale: 0.95; }
+            to { transform: translateX(0); opacity: 1; scale: 1; }
+        }
+        
+        /* 타이포그래피 */
+        h1 {
+            color: var(--text-primary);
+            font-size: clamp(1.8rem, 4vw, 3rem);
+            font-weight: 900;
+            margin-bottom: clamp(15px, 2.5vw, 30px);
+            text-align: center;
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            position: relative;
+        }
+        
+        h1::after {
+            content: '';
+            position: absolute;
+            bottom: -8px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 60%;
+            height: 3px;
+            background: linear-gradient(90deg, var(--primary-color), var(--secondary-color));
+            border-radius: 2px;
+        }
+        
+        h2 {
+            color: var(--text-primary);
+            font-size: clamp(1.3rem, 3vw, 2rem);
+            font-weight: 700;
+            margin-bottom: clamp(12px, 2vw, 24px);
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        
+        h3 {
+            color: var(--text-secondary);
+            font-size: clamp(1.1rem, 2.2vw, 1.5rem);
+            font-weight: 600;
+            margin-bottom: clamp(8px, 1.5vw, 16px);
+        }
+        
+        .content {
+            font-size: clamp(0.9rem, 1.8vw, 1.2rem);
+            line-height: 1.6;
+            color: var(--text-primary);
+        }
+        
+        /* 아이콘 시스템 */
+        .icon {
+            width: clamp(32px, 3.5vw, 45px);
+            height: clamp(32px, 3.5vw, 45px);
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: clamp(14px, 1.8vw, 20px);
+            font-weight: bold;
+            color: white;
+            box-shadow: 0 6px 12px rgba(0, 0, 0, 0.1);
+        }
+        
+        .claude-icon { background: linear-gradient(135deg, #ff6b35, #ff8c42); }
+        .github-icon { background: linear-gradient(135deg, #24292e, #0366d6); }
+        .jira-icon { background: linear-gradient(135deg, #0052cc, #2684ff); }
+        .automation-icon { background: linear-gradient(135deg, #059669, #10b981); }
+        .workflow-icon { background: linear-gradient(135deg, #dc2626, #ef4444); }
+        .success-icon { background: linear-gradient(135deg, #059669, #34d399); }
+        .warning-icon { background: linear-gradient(135deg, #d97706, #fbbf24); }
+        .security-icon { background: linear-gradient(135deg, #7c3aed, #a855f7); }
+        .step-icon { background: linear-gradient(135deg, #2563eb, #60a5fa); }
+        
+        /* 코드 블록 */
+        .code-block {
+            background: #0f172a;
+            color: #e2e8f0;
+            padding: clamp(15px, 2.5vw, 25px);
+            border-radius: 10px;
+            font-family: 'JetBrains Mono', monospace;
+            margin: clamp(12px, 2vw, 20px) 0;
+            overflow-x: auto;
+            font-size: clamp(0.75rem, 1.3vw, 1rem);
+            box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.1);
+            border: 1px solid rgba(148, 163, 184, 0.2);
+            position: relative;
+        }
+        
+        .code-block .keyword { color: #8b5cf6; font-weight: bold; }
+        .code-block .string { color: #10b981; }
+        .code-block .comment { color: #6b7280; font-style: italic; }
+        
+        /* 복사 버튼 */
+        .copy-btn {
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            background: rgba(37, 99, 235, 0.8);
+            color: white;
+            border: none;
+            padding: 6px 10px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 11px;
+            transition: all 0.2s;
+            font-family: 'Noto Sans KR', sans-serif;
+        }
+        
+        .copy-btn:hover {
+            background: rgba(37, 99, 235, 1);
+            transform: scale(1.05);
+        }
+        
+        /* 단계별 가이드 */
+        .step-guide {
+            display: grid;
+            gap: clamp(15px, 2.5vw, 25px);
+            margin: clamp(20px, 3vw, 30px) 0;
+        }
+        
+        .step-item {
+            display: grid;
+            grid-template-columns: clamp(45px, 5vw, 60px) 1fr;
+            gap: clamp(12px, 2vw, 20px);
+            align-items: start;
+        }
+        
+        .step-number {
+            width: clamp(40px, 4.5vw, 55px);
+            height: clamp(40px, 4.5vw, 55px);
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            color: white;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: clamp(1rem, 1.8vw, 1.3rem);
+            box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);
+        }
+        
+        .step-content {
+            background: rgba(255, 255, 255, 0.8);
+            padding: clamp(15px, 2.5vw, 25px);
+            border-radius: 12px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+        }
+        
+        /* 스크린샷 스타일 */
+        .screenshot {
+            background: #f1f5f9;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+            margin: clamp(15px, 2.5vw, 25px) 0;
+            border: 2px solid #e2e8f0;
+        }
+        
+        .screenshot-header {
+            background: linear-gradient(135deg, #64748b, #475569);
+            color: white;
+            padding: clamp(8px, 1.5vw, 12px) clamp(12px, 2vw, 20px);
+            font-size: clamp(0.8rem, 1.5vw, 1.1rem);
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .screenshot-content {
+            padding: clamp(15px, 2.5vw, 25px);
+            background: white;
+            font-size: clamp(0.8rem, 1.4vw, 1rem);
+            line-height: 1.5;
+        }
+        
+        /* 브라우저 목업 */
+        .browser-mockup {
+            background: #f1f5f9;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
+            margin: clamp(15px, 2.5vw, 25px) 0;
+        }
+        
+        .browser-header {
+            background: #e2e8f0;
+            padding: clamp(10px, 1.8vw, 15px) clamp(15px, 2.5vw, 25px);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .browser-dot {
+            width: clamp(10px, 1.2vw, 14px);
+            height: clamp(10px, 1.2vw, 14px);
+            border-radius: 50%;
+        }
+        
+        .dot-red { background: #ef4444; }
+        .dot-yellow { background: #f59e0b; }
+        .dot-green { background: #10b981; }
+        
+        .browser-url {
+            background: white;
+            margin-left: 15px;
+            padding: clamp(4px, 1vw, 8px) clamp(8px, 1.5vw, 12px);
+            border-radius: 6px;
+            font-size: clamp(0.75rem, 1.3vw, 1rem);
+            color: #6b7280;
+            flex: 1;
+        }
+        
+        /* 체크리스트 */
+        .checklist {
+            list-style: none;
+            padding: 0;
+        }
+        
+        .checklist li {
+            margin: clamp(8px, 1.5vw, 15px) 0;
+            padding: clamp(10px, 1.8vw, 18px);
+            background: rgba(255, 255, 255, 0.7);
+            border-radius: 8px;
+            border-left: 3px solid #6b7280;
+            cursor: pointer;
+            user-select: none;
+            transition: all 0.3s ease;
+            font-size: clamp(0.85rem, 1.5vw, 1.1rem);
+        }
+        
+        .checklist li::before {
+            content: "☐";
+            margin-right: 10px;
+            font-size: 1.2em;
+            color: #6b7280;
+            transition: all 0.3s;
+        }
+        
+        .checklist li.checked {
+            background: rgba(209, 250, 229, 0.8);
+            border-left-color: var(--success-color);
+        }
+        
+        .checklist li.checked::before {
+            content: "✅";
+            color: var(--success-color);
+        }
+        
+        /* 하이라이트 박스 */
+        .highlight {
+            background: linear-gradient(135deg, #fef3c7, #fde68a);
+            padding: clamp(12px, 2vw, 20px);
+            border-radius: 10px;
+            border-left: 4px solid var(--warning-color);
+            margin: clamp(12px, 2vw, 20px) 0;
+            box-shadow: 0 3px 10px rgba(217, 119, 6, 0.1);
+        }
+        
+        .success {
+            background: linear-gradient(135deg, #d1fae5, #a7f3d0);
+            padding: clamp(12px, 2vw, 20px);
+            border-radius: 10px;
+            border-left: 4px solid var(--success-color);
+            margin: clamp(12px, 2vw, 20px) 0;
+            box-shadow: 0 3px 10px rgba(5, 150, 105, 0.1);
+        }
+        
+        .error {
+            background: linear-gradient(135deg, #fee2e2, #fecaca);
+            padding: clamp(12px, 2vw, 20px);
+            border-radius: 10px;
+            border-left: 4px solid var(--error-color);
+            margin: clamp(12px, 2vw, 20px) 0;
+            box-shadow: 0 3px 10px rgba(220, 38, 38, 0.1);
+        }
+        
+        /* 검증 체크포인트 */
+        .checkpoint {
+            background: linear-gradient(135deg, #e0f2fe, #b3e5fc);
+            padding: clamp(15px, 2.5vw, 25px);
+            border-radius: 12px;
+            border-left: 4px solid #0284c7;
+            margin: clamp(15px, 2.5vw, 25px) 0;
+            box-shadow: 0 4px 12px rgba(2, 132, 199, 0.1);
+        }
+        
+        .checkpoint h4 {
+            color: #0284c7;
+            font-size: clamp(1rem, 1.8vw, 1.3rem);
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        /* 트러블슈팅 박스 */
+        .troubleshooting {
+            background: linear-gradient(135deg, #fef7ff, #fdf4ff);
+            padding: clamp(15px, 2.5vw, 25px);
+            border-radius: 12px;
+            border-left: 4px solid #a855f7;
+            margin: clamp(15px, 2.5vw, 25px) 0;
+            box-shadow: 0 4px 12px rgba(168, 85, 247, 0.1);
+        }
+        
+        .troubleshooting h4 {
+            color: #a855f7;
+            font-size: clamp(1rem, 1.8vw, 1.3rem);
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        /* 기능 그리드 */
+        .feature-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(clamp(250px, 30vw, 350px), 1fr));
+            gap: clamp(12px, 2vw, 20px);
+            margin: clamp(15px, 2.5vw, 25px) 0;
+        }
+        
+        .feature-card {
+            background: rgba(255, 255, 255, 0.8);
+            padding: clamp(15px, 2.5vw, 25px);
+            border-radius: 12px;
+            border: 2px solid transparent;
+            background-clip: padding-box;
+            transition: all 0.3s ease;
+            backdrop-filter: blur(10px);
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .feature-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            z-index: -1;
+            margin: -2px;
+            border-radius: inherit;
+        }
+        
+        .feature-card:hover {
+            transform: translateY(-5px) scale(1.02);
+            box-shadow: 0 8px 25px rgba(37, 99, 235, 0.2);
+        }
+        
+        /* 워크플로우 다이어그램 */
+        .workflow-diagram {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(clamp(120px, 15vw, 180px), 1fr));
+            gap: clamp(8px, 1.5vw, 15px);
+            margin: clamp(15px, 2.5vw, 25px) 0;
+            align-items: center;
+        }
+        
+        .workflow-step {
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            color: white;
+            padding: clamp(12px, 2vw, 20px);
+            border-radius: 10px;
+            text-align: center;
+            font-weight: 600;
+            position: relative;
+            box-shadow: 0 6px 20px rgba(37, 99, 235, 0.2);
+            transition: all 0.3s ease;
+            font-size: clamp(0.8rem, 1.4vw, 1.1rem);
+        }
+        
+        .workflow-step:hover {
+            transform: translateY(-3px) scale(1.02);
+            box-shadow: 0 8px 25px rgba(37, 99, 235, 0.3);
+        }
+        
+        .workflow-step::after {
+            content: "→";
+            position: absolute;
+            right: -10px;
+            top: 50%;
+            transform: translateY(-50%);
+            font-size: clamp(14px, 2.5vw, 22px);
+            color: var(--primary-color);
+            filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.1));
+        }
+        
+        .workflow-step:last-child::after {
+            display: none;
+        }
+        
+        /* 네비게이션 */
+        .navigation {
+            position: fixed;
+            bottom: clamp(15px, 2.5vw, 30px);
+            right: clamp(15px, 2.5vw, 30px);
+            display: flex;
+            gap: 10px;
+            z-index: 1000;
+        }
+        
+        .nav-btn {
+            padding: clamp(10px, 1.8vw, 14px) clamp(15px, 2.5vw, 22px);
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            color: white;
+            border: none;
+            border-radius: 25px;
+            cursor: pointer;
+            font-size: clamp(12px, 1.8vw, 16px);
+            font-weight: 600;
+            transition: all 0.3s ease;
+            box-shadow: 0 6px 20px rgba(37, 99, 235, 0.3);
+            font-family: 'Noto Sans KR', sans-serif;
+        }
+        
+        .nav-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(37, 99, 235, 0.4);
+        }
+        
+        /* 슬라이드 카운터 */
+        .slide-counter {
+            position: fixed;
+            bottom: clamp(15px, 2.5vw, 30px);
+            left: clamp(15px, 2.5vw, 30px);
+            background: rgba(255, 255, 255, 0.95);
+            padding: clamp(8px, 1.5vw, 12px) clamp(12px, 2vw, 18px);
+            border-radius: 25px;
+            font-weight: 700;
+            color: var(--text-primary);
+            font-size: clamp(12px, 1.8vw, 16px);
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.1);
+            backdrop-filter: blur(10px);
+        }
+        
+        /* 프로그레스 바 */
+        .progress-bar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 4px;
+            background: rgba(255, 255, 255, 0.3);
+            z-index: 1000;
+        }
+        
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, var(--primary-color), var(--secondary-color));
+            transition: width 0.3s ease;
+        }
+        
+        /* 리스트 스타일 */
+        ul:not(.checklist) {
+            list-style: none;
+            padding-left: 0;
+        }
+        
+        ul:not(.checklist) li {
+            margin: clamp(6px, 1.2vw, 12px) 0;
+            padding: clamp(8px, 1.5vw, 15px);
+            background: rgba(255, 255, 255, 0.6);
+            border-radius: 8px;
+            border-left: 3px solid var(--primary-color);
+            font-size: clamp(0.85rem, 1.5vw, 1.1rem);
+        }
+        
+        ul:not(.checklist) li::before {
+            content: "▶";
+            margin-right: 8px;
+            color: var(--primary-color);
+            font-size: 0.8em;
+        }
+        
+        /* 테이블 스타일 */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: clamp(15px, 2.5vw, 25px) 0;
+            background: white;
+            border-radius: 10px;
+            overflow: hidden;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        }
+        
+        th {
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            color: white;
+            padding: clamp(10px, 1.8vw, 15px);
+            font-size: clamp(0.8rem, 1.4vw, 1.1rem);
+            font-weight: 600;
+        }
+        
+        td {
+            padding: clamp(8px, 1.5vw, 12px);
+            border: 1px solid #e5e7eb;
+            font-size: clamp(0.75rem, 1.3vw, 1rem);
+        }
+        
+        tr:nth-child(even) {
+            background: #f9fafb;
+        }
+        
+        /* 모바일 최적화 */
+        @media (max-width: 768px) {
+            .step-item {
+                grid-template-columns: 1fr;
+                gap: 10px;
+                text-align: center;
+            }
+            
+            .feature-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .workflow-diagram {
+                grid-template-columns: 1fr;
+            }
+            
+            .navigation {
+                bottom: 15px;
+                right: 15px;
+                left: 15px;
+                justify-content: space-between;
+            }
+            
+            .slide {
+                padding: 15px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="progress-bar">
+        <div class="progress-fill" id="progress-fill"></div>
+    </div>
+    
+    <div class="presentation">
+        <!-- Slide 1: 타이틀 -->
+        <div class="slide active">
+            <h1>🔗 Claude-GitHub-Jira 완전 연동 시스템</h1>
+            <div class="content" style="text-align: center;">
+                <h2 style="color: #7f8c8d; font-size: clamp(1.1rem, 2.2vw, 1.6rem); justify-content: center; margin: 20px 0;">
+                    초보자도 30분만에 완주하는 단계별 가이드
+                </h2>
+                
+                <div class="highlight" style="margin: 30px 0;">
+                    <h3>🎯 이 가이드의 특징</h3>
+                    <ul style="text-align: left; font-size: clamp(0.9rem, 1.6vw, 1.2rem);">
+                        <li><strong>스크린샷 포함:</strong> 모든 단계를 실제 화면으로 설명</li>
+                        <li><strong>복사 가능한 코드:</strong> 클릭 한 번으로 설정 파일 생성</li>
+                        <li><strong>검증 체크포인트:</strong> 각 단계마다 성공 여부 확인</li>
+                        <li><strong>트러블슈팅:</strong> 자주 발생하는 오류와 해결 방법</li>
+                        <li><strong>자동화 스크립트:</strong> 원클릭 설정 도구 제공</li>
+                    </ul>
+                </div>
+                
+                <div class="workflow-diagram" style="margin: 30px 0;">
+                    <div class="workflow-step">
+                        <div class="icon claude-icon" style="margin: 0 auto 8px;">CL</div>
+                        <strong>Claude 설정</strong><br>
+                        <small>5분</small>
+                    </div>
+                    <div class="workflow-step">
+                        <div class="icon jira-icon" style="margin: 0 auto 8px;">JR</div>
+                        <strong>Jira 연동</strong><br>
+                        <small>10분</small>
+                    </div>
+                    <div class="workflow-step">
+                        <div class="icon github-icon" style="margin: 0 auto 8px;">GH</div>
+                        <strong>GitHub Actions</strong><br>
+                        <small>10분</small>
+                    </div>
+                    <div class="workflow-step">
+                        <div class="icon success-icon" style="margin: 0 auto 8px;">✓</div>
+                        <strong>테스트</strong><br>
+                        <small>5분</small>
+                    </div>
+                </div>
+                
+                <div class="success">
+                    <h3>✨ 완료 후 얻게 되는 것</h3>
+                    <p style="font-size: clamp(0.9rem, 1.6vw, 1.2rem);">
+                        • PR 생성과 동시에 AI 코드 리뷰 자동 실행<br>
+                        • Jira 티켓 실시간 자동 업데이트<br>
+                        • 팀 전체 개발 생산성 40% 향상<br>
+                        • 버그 75% 감소 및 코드 품질 획기적 개선
+                    </p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Slide 2: 사전 준비사항 -->
+        <div class="slide">
+            <h2><div class="icon step-icon">📋</div>시작하기 전 준비사항 (5분)</h2>
+            <div class="content">
+                <div class="error">
+                    <h3>⚠️ 중요: 먼저 확인해주세요!</h3>
+                    <p>아래 항목들을 미리 준비하지 않으면 나중에 막힐 수 있습니다.</p>
+                </div>
+
+                <div class="step-guide">
+                    <div class="step-item">
+                        <div class="step-number">1</div>
+                        <div class="step-content">
+                            <h3>계정 및 권한 확인</h3>
+                            <div class="checklist">
+                                <li onclick="toggleCheck(this)"><strong>Claude Pro 계정</strong> 보유 (월 $20)</li>
+                                <li onclick="toggleCheck(this)"><strong>GitHub Repository Admin</strong> 권한</li>
+                                <li onclick="toggleCheck(this)"><strong>Jira Project Admin</strong> 권한</li>
+                                <li onclick="toggleCheck(this)"><strong>회사 IT 정책</strong> 확인 (외부 API 사용 허용)</li>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="step-item">
+                        <div class="step-number">2</div>
+                        <div class="step-content">
+                            <h3>개발 환경 설정</h3>
+                            <div class="screenshot">
+                                <div class="screenshot-header">
+                                    <div class="icon automation-icon">⚙️</div>
+                                    필수 도구 설치 확인
+                                </div>
+                                <div class="screenshot-content">
+                                    <table>
+                                        <tr>
+                                            <th>도구</th>
+                                            <th>설치 명령어</th>
+                                            <th>확인 방법</th>
+                                        </tr>
+                                        <tr>
+                                            <td><strong>Node.js</strong></td>
+                                            <td><code>brew install node</code></td>
+                                            <td><code>node --version</code></td>
+                                        </tr>
+                                        <tr>
+                                            <td><strong>Git</strong></td>
+                                            <td><code>brew install git</code></td>
+                                            <td><code>git --version</code></td>
+                                        </tr>
+                                        <tr>
+                                            <td><strong>GitHub CLI</strong></td>
+                                            <td><code>brew install gh</code></td>
+                                            <td><code>gh auth status</code></td>
+                                        </tr>
+                                        <tr>
+                                            <td><strong>Python uvx</strong></td>
+                                            <td><code>pip install uv</code></td>
+                                            <td><code>uvx --version</code></td>
+                                        </tr>
+                                    </table>
+                                </div>
+                            </div>
+                            
+                            <div class="code-block">
+                                <button class="copy-btn" onclick="copyCode(this)">복사</button>
+<span class="comment"># 한 번에 모든 도구 설치 (MacOS)</span>
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+brew install node git gh
+pip install uv
+
+<span class="comment"># 설치 확인</span>
+node --version && git --version && gh --version && uvx --version
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="step-item">
+                        <div class="step-number">3</div>
+                        <div class="step-content">
+                            <h3>프로젝트 폴더 준비</h3>
+                            <div class="code-block">
+                                <button class="copy-btn" onclick="copyCode(this)">복사</button>
+<span class="comment"># 작업할 프로젝트 폴더로 이동</span>
+cd /path/to/your/project
+
+<span class="comment"># 또는 새 프로젝트 생성</span>
+mkdir my-automated-project
+cd my-automated-project
+git init
+                            </div>
+                            
+                            <div class="checkpoint">
+                                <h4><div class="icon success-icon" style="width: 20px; height: 20px; font-size: 12px;">✓</div>체크포인트 1</h4>
+                                <p>터미널에서 <code>pwd</code> 명령어를 실행했을 때 프로젝트 경로가 올바르게 표시되나요?</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="success">
+                    <h3>🎉 준비 완료!</h3>
+                    <p>모든 체크박스에 체크했다면 다음 단계로 진행하세요.</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Slide 3: Claude Code 설정 상세 가이드 -->
+        <div class="slide">
+            <h2><div class="icon claude-icon">🤖</div>1단계: Claude Code 완전 설정 가이드 (5분)</h2>
+            <div class="content">
+                <div class="step-guide">
+                    <div class="step-item">
+                        <div class="step-number">1</div>
+                        <div class="step-content">
+                            <h3>Claude Code OAuth 토큰 발급</h3>
+                            <div class="screenshot">
+                                <div class="screenshot-header">
+                                    <div class="icon claude-icon">🔐</div>
+                                    Claude Code 웹사이트 접속 및 토큰 발급 (스크린샷 포함)
+                                </div>
+                                <div class="screenshot-content">
+                                    <div class="visual-guide">
+                                        <div class="screenshot-placeholder" style="border: 2px dashed #4A90E2; padding: 20px; margin: 10px 0; background: #f8f9fa; border-radius: 8px;">
+                                            <p><strong>📸 스크린샷 1:</strong> Claude.ai 로그인 화면</p>
+                                            <p style="font-size: 14px; color: #666;">• 화면 좌측: Claude 로고와 "Sign in" 버튼</p>
+                                            <p style="font-size: 14px; color: #666;">• 화면 우측: Google/이메일 로그인 옵션</p>
+                                            <p style="font-size: 14px; color: #666;">• 상단 메뉴: Code, Chat, Projects 탭 표시</p>
+                                        </div>
+                                        <div class="screenshot-placeholder" style="border: 2px dashed #4A90E2; padding: 20px; margin: 10px 0; background: #f8f9fa; border-radius: 8px;">
+                                            <p><strong>📸 스크린샷 2:</strong> Settings 메뉴 위치</p>
+                                            <p style="font-size: 14px; color: #666;">• 우측 상단 프로필 이미지 클릭 시 드롭다운</p>
+                                            <p style="font-size: 14px; color: #666;">• "Settings", "Billing", "Sign out" 옵션 표시</p>
+                                            <p style="font-size: 14px; color: #666;">• Settings 항목에 톱니바퀴 아이콘 표시</p>
+                                        </div>
+                                        <div class="screenshot-placeholder" style="border: 2px dashed #4A90E2; padding: 20px; margin: 10px 0; background: #f8f9fa; border-radius: 8px;">
+                                            <p><strong>📸 스크린샷 3:</strong> API Keys 설정 페이지</p>
+                                            <p style="font-size: 14px; color: #666;">• 좌측 사이드바: General, API Keys, Integrations</p>
+                                            <p style="font-size: 14px; color: #666;">• 중앙: "Create API Key" 또는 "Generate Token" 버튼</p>
+                                            <p style="font-size: 14px; color: #666;">• 기존 키 목록 테이블 (이름, 생성일, 상태)</p>
+                                        </div>
+                                    </div>
+                                    <ol style="line-height: 2;">
+                                        <li><strong>브라우저에서 접속:</strong> <code>https://claude.ai/code</code></li>
+                                        <li><strong>로그인:</strong> Claude Pro 계정으로 로그인</li>
+                                        <li><strong>설정 메뉴:</strong> 우측 상단 프로필 → Settings 클릭</li>
+                                        <li><strong>API 키 섹션:</strong> "API Keys" 또는 "Integrations" 탭 찾기</li>
+                                        <li><strong>토큰 생성:</strong> "Generate OAuth Token" 버튼 클릭</li>
+                                        <li><strong>이름 설정:</strong> "GitHub-Jira-Integration" 입력</li>
+                                        <li><strong>권한 선택:</strong> 모든 권한 체크 (Code Review, API Access)</li>
+                                        <li><strong>생성 완료:</strong> 토큰 복사하여 메모장에 임시 저장</li>
+                                    </ol>
+                                </div>
+                            </div>
+                            
+                            <div class="highlight">
+                                <h4>💡 토큰 저장 팁</h4>
+                                <ul>
+                                    <li>생성된 토큰은 <strong>한 번만 표시</strong>됩니다</li>
+                                    <li>안전한 메모장에 <strong>즉시 복사</strong>하세요</li>
+                                    <li>토큰 이름: <code>claude_oauth_token_[날짜]</code> 형태로 저장</li>
+                                </ul>
+                            </div>
+                            
+                            <div class="troubleshooting">
+                                <h4><div class="icon warning-icon" style="width: 20px; height: 20px; font-size: 12px;">🛠️</div>자주 발생하는 문제</h4>
+                                <ul>
+                                    <li><strong>Settings 메뉴가 없다면:</strong> Claude Pro 계정인지 확인</li>
+                                    <li><strong>OAuth 옵션이 없다면:</strong> Code 탭으로 이동 후 다시 시도</li>
+                                    <li><strong>토큰 생성 실패:</strong> 브라우저 쿠키 삭제 후 재로그인</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="step-item">
+                        <div class="step-number">2</div>
+                        <div class="step-content">
+                            <h3>로컬 Claude 설정 파일 생성</h3>
+                            <div class="screenshot">
+                                <div class="screenshot-header">
+                                    <div class="icon step-icon">📁</div>
+                                    프로젝트 폴더 구조 생성
+                                </div>
+                                <div class="screenshot-content">
+                                    <div class="code-block">
+                                        <button class="copy-btn" onclick="copyCode(this)">복사</button>
+<span class="comment"># .claude 폴더 생성</span>
+mkdir -p .claude
+
+<span class="comment"># settings.local.json 파일 생성</span>
+cat > .claude/settings.local.json << 'EOF'
+{
+  "permissions": {
+    "allow": [
+      "mcp__mcp-atlassian__jira_add_comment",
+      "mcp__mcp-atlassian__jira_get_issue", 
+      "mcp__mcp-atlassian__jira_search",
+      "Bash(git checkout:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)",
+      "Bash(gh pr create:*)",
+      "Bash(gh pr list:*)",
+      "Bash(gh pr ready:*)",
+      "Bash(gh pr comment:*)"
+    ],
+    "deny": [],
+    "ask": []
+  },
+  "enableAllProjectMcpServers": true,
+  "enabledMcpjsonServers": ["mcp-atlassian"]
+}
+EOF
+
+<span class="comment"># 파일 생성 확인</span>
+ls -la .claude/
+cat .claude/settings.local.json
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="checkpoint">
+                                <h4><div class="icon success-icon" style="width: 20px; height: 20px; font-size: 12px;">✓</div>체크포인트 2</h4>
+                                <p><code>cat .claude/settings.local.json</code> 명령어 실행 시 JSON 내용이 올바르게 표시되나요?</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="step-item">
+                        <div class="step-number">3</div>
+                        <div class="step-content">
+                            <h3>Claude Code 연결 테스트</h3>
+                            <div class="code-block">
+                                <button class="copy-btn" onclick="copyCode(this)">복사</button>
+<span class="comment"># Claude Code CLI 실행 (새 터미널 창)</span>
+claude-code
+
+<span class="comment"># 또는 브라우저에서 Claude Code 접속</span>
+<span class="comment"># https://claude.ai/code</span>
+
+<span class="comment"># MCP 서버 상태 확인</span>
+/mcp list
+                            </div>
+                            
+                            <div class="success">
+                                <h4>✅ 성공 시 표시되는 내용</h4>
+                                <ul>
+                                    <li>MCP 서버 목록에 "mcp-atlassian"이 나타남</li>
+                                    <li>권한 설정이 올바르게 로드됨</li>
+                                    <li>오류 메시지가 없음</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Slide 4: Jira 연동 상세 가이드 -->
+        <div class="slide">
+            <h2><div class="icon jira-icon">📋</div>2단계: Jira 완전 연동 가이드 (10분)</h2>
+            <div class="content">
+                <div class="step-guide">
+                    <div class="step-item">
+                        <div class="step-number">1</div>
+                        <div class="step-content">
+                            <h3>Jira API 토큰 생성 (상세 단계)</h3>
+                            <div class="screenshot">
+                                <div class="screenshot-header">
+                                    <div class="icon jira-icon">🔐</div>
+                                    Atlassian 계정 설정 접속하기
+                                </div>
+                                <div class="screenshot-content">
+                                    <ol style="line-height: 2.2;">
+                                        <li><strong>1단계:</strong> 브라우저에서 <code>https://id.atlassian.com/manage-profile/security/api-tokens</code> 접속</li>
+                                        <li><strong>2단계:</strong> Atlassian 계정으로 로그인</li>
+                                        <li><strong>3단계:</strong> "Create API token" 버튼 클릭</li>
+                                        <li><strong>4단계:</strong> 레이블에 "Claude-GitHub-Integration" 입력</li>
+                                        <li><strong>5단계:</strong> "Create" 버튼 클릭</li>
+                                        <li><strong>6단계:</strong> <span style="color: #dc2626; font-weight: bold;">생성된 토큰을 즉시 복사!</span> (다시 볼 수 없음)</li>
+                                        <li><strong>7단계:</strong> 메모장에 안전하게 저장</li>
+                                    </ol>
+                                </div>
+                            </div>
+                            
+                            <div class="error">
+                                <h4>⚠️ 절대 놓치면 안 되는 정보</h4>
+                                <ul>
+                                    <li>API 토큰은 <strong>생성 직후 한 번만</strong> 표시됩니다</li>
+                                    <li>토큰을 잃어버리면 <strong>새로 만들어야</strong> 합니다</li>
+                                    <li><strong>복사 직후 메모장에 저장</strong>하세요</li>
+                                </ul>
+                            </div>
+                            
+                            <div class="checkpoint">
+                                <h4><div class="icon success-icon" style="width: 20px; height: 20px; font-size: 12px;">✓</div>체크포인트 3</h4>
+                                <p>API 토큰이 메모장에 안전하게 저장되었나요? (ATATT로 시작하는 긴 문자열)</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="step-item">
+                        <div class="step-number">2</div>
+                        <div class="step-content">
+                            <h3>Jira 연결 정보 수집</h3>
+                            <div class="screenshot">
+                                <div class="screenshot-header">
+                                    <div class="icon automation-icon">📊</div>
+                                    필요한 Jira 정보 확인하기
+                                </div>
+                                <div class="screenshot-content">
+                                    <table>
+                                        <tr>
+                                            <th>정보</th>
+                                            <th>찾는 방법</th>
+                                            <th>예시</th>
+                                        </tr>
+                                        <tr>
+                                            <td><strong>Jira URL</strong></td>
+                                            <td>브라우저 주소창에서 확인</td>
+                                            <td>https://your-company.atlassian.net</td>
+                                        </tr>
+                                        <tr>
+                                            <td><strong>이메일 주소</strong></td>
+                                            <td>Jira 로그인 시 사용하는 이메일</td>
+                                            <td>your-email@company.com</td>
+                                        </tr>
+                                        <tr>
+                                            <td><strong>API 토큰</strong></td>
+                                            <td>1단계에서 생성한 토큰</td>
+                                            <td>ATATT3xFfGF0...</td>
+                                        </tr>
+                                        <tr>
+                                            <td><strong>프로젝트 키</strong></td>
+                                            <td>Jira에서 이슈 번호 앞부분</td>
+                                            <td>CX, PROJ, DEV 등</td>
+                                        </tr>
+                                    </table>
+                                </div>
+                            </div>
+                            
+                            <div class="code-block">
+                                <button class="copy-btn" onclick="copyCode(this)">복사</button>
+<span class="comment"># 정보 수집 체크리스트 (아래 정보를 메모하세요)</span>
+
+<span class="keyword">JIRA_URL=</span><span class="string">"https://[회사명].atlassian.net"</span>
+<span class="keyword">JIRA_EMAIL=</span><span class="string">"[본인 이메일]"</span>
+<span class="keyword">JIRA_TOKEN=</span><span class="string">"[생성한 API 토큰]"</span>
+<span class="keyword">PROJECT_KEY=</span><span class="string">"[프로젝트 키]"</span>
+
+<span class="comment"># 예시:</span>
+<span class="comment"># JIRA_URL="https://kakaovx.atlassian.net"</span>
+<span class="comment"># JIRA_EMAIL="machson@kakaovx.com"</span>
+<span class="comment"># JIRA_TOKEN="ATATT3xFfGF0DpY7WXI5aZnO..."</span>
+<span class="comment"># PROJECT_KEY="CX"</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="step-item">
+                        <div class="step-number">3</div>
+                        <div class="step-content">
+                            <h3>.mcp.json 설정 파일 생성</h3>
+                            <div class="highlight">
+                                <h4>🔧 개인정보 보호 방법</h4>
+                                <p>실제 토큰을 파일에 넣기 전에 <strong>환경변수 방식</strong>을 권장합니다!</p>
+                            </div>
+                            
+                            <div class="screenshot">
+                                <div class="screenshot-header">
+                                    <div class="icon step-icon">⚙️</div>
+                                    방법 1: 환경변수 사용 (보안 권장)
+                                </div>
+                                <div class="screenshot-content">
+                                    <div class="visual-guide">
+                                        <div class="screenshot-placeholder" style="border: 2px dashed #28a745; padding: 20px; margin: 10px 0; background: #f8fff9; border-radius: 8px;">
+                                            <p><strong>📸 터미널 스크린샷:</strong> 환경변수 설정 과정</p>
+                                            <p style="font-size: 14px; color: #666;">• 화면: VSCode 터미널 창 또는 iTerm/Terminal</p>
+                                            <p style="font-size: 14px; color: #666;">• 명령어 실행 후: ".env 파일 생성됨" 메시지</p>
+                                            <p style="font-size: 14px; color: #666;">• 파일 탐색기: .env, .gitignore 파일 표시</p>
+                                        </div>
+                                        <div class="screenshot-placeholder" style="border: 2px dashed #28a745; padding: 20px; margin: 10px 0; background: #f8fff9; border-radius: 8px;">
+                                            <p><strong>📸 파일 구조 스크린샷:</strong> 생성된 파일들</p>
+                                            <p style="font-size: 14px; color: #666;">• 프로젝트 폴더에 .env, .gitignore, .mcp.json 표시</p>
+                                            <p style="font-size: 14px; color: #666;">• VSCode 좌측 파일 탐색기에서 확인 가능</p>
+                                            <p style="font-size: 14px; color: #666;">• .env 파일에 🔒 아이콘으로 보안 파일 표시</p>
+                                        </div>
+                                    </div>
+                                    <div class="code-block">
+                                        <button class="copy-btn" onclick="copyCode(this)">복사</button>
+<span class="comment"># 1. 환경변수 설정 파일 생성</span>
+cat > .env << 'EOF'
+JIRA_URL=https://your-company.atlassian.net
+JIRA_EMAIL=your-email@company.com
+JIRA_TOKEN=your-api-token-here
+EOF
+
+<span class="comment"># 2. .env 파일을 git에서 제외</span>
+echo ".env" >> .gitignore
+
+<span class="comment"># 3. .mcp.json 파일 생성 (환경변수 사용)</span>
+cat > .mcp.json << 'EOF'
+{
+  "mcpServers": {
+    "mcp-atlassian": {
+      "command": "uvx",
+      "args": [
+        "mcp-atlassian",
+        "--jira-url=${JIRA_URL}",
+        "--jira-username=${JIRA_EMAIL}",
+        "--jira-token=${JIRA_TOKEN}"
+      ]
+    }
+  }
+}
+EOF
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="screenshot">
+                                <div class="screenshot-header">
+                                    <div class="icon warning-icon">⚠️</div>
+                                    방법 2: 직접 입력 (테스트용만 권장)
+                                </div>
+                                <div class="screenshot-content">
+                                    <div class="code-block">
+                                        <button class="copy-btn" onclick="copyCode(this)">복사</button>
+<span class="comment"># .mcp.json 파일 직접 생성 (실제 값 입력 필요)</span>
+cat > .mcp.json << 'EOF'
+{
+  "mcpServers": {
+    "mcp-atlassian": {
+      "command": "uvx",
+      "args": [
+        "mcp-atlassian",
+        "--jira-url=https://your-company.atlassian.net",
+        "--jira-username=your-email@company.com",
+        "--jira-token=ATATT3xFfGF0DpY7WXI5aZnO..."
+      ]
+    }
+  }
+}
+EOF
+
+<span class="comment"># 중요: 이 방식 사용 시 .mcp.json을 git에 커밋하지 마세요!</span>
+echo ".mcp.json" >> .gitignore
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="step-item">
+                        <div class="step-number">4</div>
+                        <div class="step-content">
+                            <h3>Jira 연동 테스트</h3>
+                            <div class="code-block">
+                                <button class="copy-btn" onclick="copyCode(this)">복사</button>
+<span class="comment"># MCP 서버 설치 확인</span>
+uvx mcp-atlassian --help
+
+<span class="comment"># Jira 연결 테스트</span>
+uvx mcp-atlassian \
+  --jira-url="https://your-company.atlassian.net" \
+  --jira-username="your-email@company.com" \
+  --jira-token="your-token" \
+  test-connection
+
+<span class="comment"># Claude Code에서 Jira 기능 테스트</span>
+<span class="comment"># Claude Code 실행 후 다음 명령어 입력:</span>
+<span class="comment"># "CX 프로젝트의 이슈 목록을 보여주세요"</span>
+                            </div>
+                            
+                            <div class="checkpoint">
+                                <h4><div class="icon success-icon" style="width: 20px; height: 20px; font-size: 12px;">✓</div>체크포인트 4</h4>
+                                <div class="checklist">
+                                    <li onclick="toggleCheck(this)">MCP 서버가 오류 없이 실행됨</li>
+                                    <li onclick="toggleCheck(this)">Jira 연결 테스트 성공</li>
+                                    <li onclick="toggleCheck(this)">Claude Code에서 Jira 이슈 조회 가능</li>
+                                </div>
+                            </div>
+                            
+                            <div class="troubleshooting">
+                                <h4><div class="icon warning-icon" style="width: 20px; height: 20px; font-size: 12px;">🛠️</div>연결 실패 시 해결 방법</h4>
+                                <ul>
+                                    <li><strong>"Connection failed" 오류:</strong> URL에 "https://" 포함 여부 확인</li>
+                                    <li><strong>"Authentication failed" 오류:</strong> API 토큰이 만료되지 않았는지 확인</li>
+                                    <li><strong>"Permission denied" 오류:</strong> Jira 프로젝트 권한 확인</li>
+                                    <li><strong>uvx 명령어 없음:</strong> <code>pip install uv</code> 재실행</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Slide 5: GitHub Actions 상세 설정 -->
+        <div class="slide">
+            <h2><div class="icon github-icon">⚙️</div>3단계: GitHub Actions 완전 설정 (10분)</h2>
+            <div class="content">
+                <div class="step-guide">
+                    <div class="step-item">
+                        <div class="step-number">1</div>
+                        <div class="step-content">
+                            <h3>GitHub Repository Secrets 설정</h3>
+                            <div class="screenshot">
+                                <div class="screenshot-header">
+                                    <div class="icon github-icon">🔐</div>
+                                    GitHub 웹사이트에서 Secrets 관리하기
+                                </div>
+                                <div class="screenshot-content">
+                                    <ol style="line-height: 2.2;">
+                                        <li><strong>GitHub 접속:</strong> 본인의 Repository로 이동</li>
+                                        <li><strong>Settings 탭:</strong> 상단 메뉴에서 "Settings" 클릭</li>
+                                        <li><strong>보안 섹션:</strong> 좌측 메뉴에서 "Security" 찾기</li>
+                                        <li><strong>Secrets 메뉴:</strong> "Secrets and variables" → "Actions" 클릭</li>
+                                        <li><strong>새 Secret 생성:</strong> "New repository secret" 버튼 클릭</li>
+                                        <li><strong>Secret 정보 입력:</strong> 아래 표 참조하여 하나씩 생성</li>
+                                    </ol>
+                                    
+                                    <table style="margin-top: 20px;">
+                                        <tr>
+                                            <th style="width: 40%;">Name</th>
+                                            <th style="width: 60%;">Value (실제 값으로 교체)</th>
+                                        </tr>
+                                        <tr>
+                                            <td><code>CLAUDE_CODE_OAUTH_TOKEN</code></td>
+                                            <td>1단계에서 생성한 Claude OAuth 토큰</td>
+                                        </tr>
+                                        <tr>
+                                            <td><code>JIRA_API_TOKEN</code></td>
+                                            <td>2단계에서 생성한 Jira API 토큰</td>
+                                        </tr>
+                                        <tr>
+                                            <td><code>JIRA_URL</code></td>
+                                            <td>https://your-company.atlassian.net</td>
+                                        </tr>
+                                        <tr>
+                                            <td><code>JIRA_EMAIL</code></td>
+                                            <td>your-email@company.com</td>
+                                        </tr>
+                                    </table>
+                                </div>
+                            </div>
+                            
+                            <div class="highlight">
+                                <h4>💡 Secret 생성 팁</h4>
+                                <ul>
+                                    <li><strong>한 번에 하나씩:</strong> 각 Secret을 개별적으로 생성</li>
+                                    <li><strong>이름 정확히:</strong> 대소문자 구분하여 정확히 입력</li>
+                                    <li><strong>값 확인:</strong> 복사/붙여넣기 시 공백이 들어가지 않도록 주의</li>
+                                </ul>
+                            </div>
+                            
+                            <div class="checkpoint">
+                                <h4><div class="icon success-icon" style="width: 20px; height: 20px; font-size: 12px;">✓</div>체크포인트 5</h4>
+                                <p>Repository Settings → Secrets에서 4개의 Secret이 모두 생성되었나요?</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="step-item">
+                        <div class="step-number">2</div>
+                        <div class="step-content">
+                            <h3>GitHub Actions 워크플로우 파일 생성</h3>
+                            <div class="code-block">
+                                <button class="copy-btn" onclick="copyCode(this)">복사</button>
+<span class="comment"># GitHub Actions 폴더 생성</span>
+mkdir -p .github/workflows
+
+<span class="comment"># 워크플로우 파일 생성</span>
+cat > .github/workflows/claude-code-review.yml << 'EOF'
+name: Claude Code Review & Jira Integration
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    # 특정 파일만 감지하고 싶다면 아래 주석 해제
+    # paths:
+    #   - "src/**/*.js"
+    #   - "src/**/*.ts" 
+    #   - "src/**/*.py"
+
+jobs:
+  automated-review:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: read
+      id-token: write
+    
+    steps:
+      # 1. 저장소 체크아웃
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2  # 변경사항 비교를 위해 2개 커밋 가져오기
+
+      # 2. Jira 티켓 번호 추출
+      - name: Extract Jira ticket from branch name
+        id: extract_jira
+        run: |
+          BRANCH_NAME="${{ github.head_ref }}"
+          echo "Branch name: $BRANCH_NAME"
+          
+          # CX-1234 형태의 티켓 번호 추출
+          TICKET=$(echo "$BRANCH_NAME" | grep -o 'CX-[0-9]\+' | head -n1)
+          
+          if [ -z "$TICKET" ]; then
+            echo "No Jira ticket found in branch name: $BRANCH_NAME"
+            echo "ticket=" >> $GITHUB_OUTPUT
+          else
+            echo "Found ticket: $TICKET"
+            echo "ticket=$TICKET" >> $GITHUB_OUTPUT
+          fi
+
+      # 3. 변경된 파일 목록 생성
+      - name: Get changed files
+        id: changed_files
+        run: |
+          echo "Getting changed files..."
+          CHANGED_FILES=$(git diff --name-only HEAD~1 HEAD || echo "")
+          echo "Changed files: $CHANGED_FILES"
+          echo "files<<EOF" >> $GITHUB_OUTPUT
+          echo "$CHANGED_FILES" >> $GITHUB_OUTPUT  
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      # 4. Claude 코드 리뷰 실행
+      - name: Run Claude Code Review
+        if: steps.changed_files.outputs.files != ''
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          prompt: |
+            이 PR을 체계적으로 리뷰해주세요.
+            
+            **분석해야 할 변경 파일들:**
+            ${{ steps.changed_files.outputs.files }}
+            
+            **리뷰 체크리스트:**
+            1. 🐛 버그 및 로직 오류
+            2. 🔒 보안 취약점
+            3. ⚡ 성능 이슈
+            4. 📏 코드 품질 및 스타일
+            5. 🧪 테스트 커버리지
+            6. 📚 문서화 필요성
+            
+            **리뷰 결과를 GitHub PR에 코멘트로 남겨주세요.**
+            - 발견된 이슈가 있다면 구체적인 수정 방안 제시
+            - 코드 개선 제안사항 포함
+            - 긍정적인 부분도 언급
+            
+            gh pr comment 명령어를 사용해 코멘트를 작성해주세요.
+
+      # 5. Jira 티켓 자동 업데이트
+      - name: Update Jira ticket
+        if: steps.extract_jira.outputs.ticket != ''
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          prompt: |
+            Jira 티켓 ${{ steps.extract_jira.outputs.ticket }}에 PR 진행상황을 업데이트해주세요.
+            
+            **업데이트할 정보:**
+            - PR URL: ${{ github.event.pull_request.html_url }}
+            - 브랜치: ${{ github.head_ref }}
+            - 작성자: ${{ github.event.pull_request.user.login }}
+            - 변경 파일 수: $(echo "${{ steps.changed_files.outputs.files }}" | wc -l)
+            - 상태: 🤖 AI 코드 리뷰 완료
+            - 일시: $(date '+%Y-%m-%d %H:%M:%S')
+            
+            **코멘트 형식:**
+            ```
+            🤖 **GitHub Actions 자동 업데이트**
+            
+            **PR 정보:**
+            - 링크: ${{ github.event.pull_request.html_url }}
+            - 브랜치: ${{ github.head_ref }}
+            - 작성자: ${{ github.event.pull_request.user.login }}
+            - 제목: ${{ github.event.pull_request.title }}
+            
+            **상태:** ✅ AI 코드 리뷰 완료
+            **처리일시:** $(date '+%Y-%m-%d %H:%M:%S KST')
+            ```
+            
+            Jira MCP를 사용해서 이 정보로 코멘트를 추가해주세요.
+
+      # 6. 리뷰 완료 알림
+      - name: Review completion summary
+        if: always()
+        run: |
+          echo "## 📋 리뷰 완료 요약" >> $GITHUB_STEP_SUMMARY
+          echo "- **브랜치:** ${{ github.head_ref }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Jira 티켓:** ${{ steps.extract_jira.outputs.ticket || 'N/A' }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **변경 파일:** $(echo "${{ steps.changed_files.outputs.files }}" | wc -l)개" >> $GITHUB_STEP_SUMMARY
+          echo "- **상태:** ✅ 자동 리뷰 완료" >> $GITHUB_STEP_SUMMARY
+EOF
+
+<span class="comment"># 파일 생성 확인</span>
+ls -la .github/workflows/
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="step-item">
+                        <div class="step-number">3</div>
+                        <div class="step-content">
+                            <h3>워크플로우 권한 및 설정 확인</h3>
+                            <div class="screenshot">
+                                <div class="screenshot-header">
+                                    <div class="icon automation-icon">⚙️</div>
+                                    GitHub Actions 권한 설정하기
+                                </div>
+                                <div class="screenshot-content">
+                                    <ol style="line-height: 2.2;">
+                                        <li><strong>Repository Settings:</strong> Settings 탭으로 이동</li>
+                                        <li><strong>Actions 권한:</strong> 좌측 메뉴에서 "Actions" → "General" 클릭</li>
+                                        <li><strong>Workflow 권한:</strong> "Workflow permissions" 섹션 찾기</li>
+                                        <li><strong>권한 설정:</strong> "Read and write permissions" 선택</li>
+                                        <li><strong>적용:</strong> "Save" 버튼 클릭</li>
+                                    </ol>
+                                    
+                                    <div style="background: #f0f9ff; padding: 15px; border-radius: 8px; margin-top: 15px;">
+                                        <h5 style="color: #0284c7; margin-bottom: 10px;">필수 권한 목록:</h5>
+                                        <ul>
+                                            <li><strong>contents: read</strong> - 코드 읽기</li>
+                                            <li><strong>pull-requests: write</strong> - PR 코멘트 작성</li>
+                                            <li><strong>issues: read</strong> - 이슈 정보 조회</li>
+                                            <li><strong>id-token: write</strong> - OIDC 토큰 발급</li>
+                                        </ul>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="step-item">
+                        <div class="step-number">4</div>
+                        <div class="step-content">
+                            <h3>설정 파일 커밋 및 푸시</h3>
+                            <div class="code-block">
+                                <button class="copy-btn" onclick="copyCode(this)">복사</button>
+<span class="comment"># 모든 설정 파일을 Git에 추가</span>
+git add .github/workflows/claude-code-review.yml
+git add .claude/settings.local.json
+git add .mcp.json
+
+<span class="comment"># 커밋 생성</span>
+git commit -m "feat: Add Claude-GitHub-Jira integration workflow
+
+- Add GitHub Actions workflow for automated code review
+- Configure Claude Code settings with MCP integration  
+- Set up Jira automation for ticket updates
+- Enable AI-powered code analysis and feedback
+
+🤖 Generated with [Claude Code](https://claude.ai/code)
+
+Co-Authored-By: Claude <noreply@anthropic.com>"
+
+<span class="comment"># 원격 저장소에 푸시</span>
+git push origin main
+
+<span class="comment"># 워크플로우 파일 확인</span>
+cat .github/workflows/claude-code-review.yml
+                            </div>
+                            
+                            <div class="checkpoint">
+                                <h4><div class="icon success-icon" style="width: 20px; height: 20px; font-size: 12px;">✓</div>체크포인트 6</h4>
+                                <div class="checklist">
+                                    <li onclick="toggleCheck(this)">워크플로우 파일이 올바르게 생성됨</li>
+                                    <li onclick="toggleCheck(this)">GitHub Secrets이 모두 설정됨</li>
+                                    <li onclick="toggleCheck(this)">Actions 권한이 올바르게 설정됨</li>
+                                    <li onclick="toggleCheck(this)">파일들이 Git에 커밋되고 푸시됨</li>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Slide 6: 완전한 통합 테스트 -->
+        <div class="slide">
+            <h2><div class="icon success-icon">🧪</div>4단계: 완전한 통합 테스트 (5분)</h2>
+            <div class="content">
+                <div class="highlight">
+                    <h3>🎯 테스트 목표</h3>
+                    <p>실제 PR을 만들어서 전체 자동화 시스템이 완벽히 작동하는지 확인합니다.</p>
+                </div>
+
+                <div class="step-guide">
+                    <div class="step-item">
+                        <div class="step-number">1</div>
+                        <div class="step-content">
+                            <h3>테스트용 Jira 티켓 생성</h3>
+                            <div class="screenshot">
+                                <div class="screenshot-header">
+                                    <div class="icon jira-icon">🎫</div>
+                                    Jira에서 테스트 티켓 만들기 (스크린샷 가이드)
+                                </div>
+                                <div class="screenshot-content">
+                                    <div class="visual-guide">
+                                        <div class="screenshot-placeholder" style="border: 2px dashed #0052cc; padding: 20px; margin: 10px 0; background: #f4f7fb; border-radius: 8px;">
+                                            <p><strong>📸 Jira 메인 화면:</strong> 프로젝트 대시보드</p>
+                                            <p style="font-size: 14px; color: #666;">• 상단 네비게이션: 프로젝트명, 보드, 이슈 메뉴</p>
+                                            <p style="font-size: 14px; color: #666;">• 우측 상단: 파란색 "만들기" 또는 "Create" 버튼</p>
+                                            <p style="font-size: 14px; color: #666;">• 좌측 사이드바: Backlog, Active sprints, Reports</p>
+                                        </div>
+                                        <div class="screenshot-placeholder" style="border: 2px dashed #0052cc; padding: 20px; margin: 10px 0; background: #f4f7fb; border-radius: 8px;">
+                                            <p><strong>📸 이슈 생성 팝업:</strong> 새 이슈 양식</p>
+                                            <p style="font-size: 14px; color: #666;">• 프로젝트 드롭다운: 현재 프로젝트 선택됨</p>
+                                            <p style="font-size: 14px; color: #666;">• 이슈 유형: Task, Story, Bug 등 옵션</p>
+                                            <p style="font-size: 14px; color: #666;">• 요약 필드: 제목 입력 영역</p>
+                                            <p style="font-size: 14px; color: #666;">• 설명 필드: 마크다운 에디터</p>
+                                        </div>
+                                        <div class="screenshot-placeholder" style="border: 2px dashed #0052cc; padding: 20px; margin: 10px 0; background: #f4f7fb; border-radius: 8px;">
+                                            <p><strong>📸 생성완료 확인:</strong> 새 티켓 상세페이지</p>
+                                            <p style="font-size: 14px; color: #666;">• 좌측 상단: 티켓 키와 제목 표시 (예: CX-123)</p>
+                                            <p style="font-size: 14px; color: #666;">• 우측: 담당자, 상태, 우선순위 정보</p>
+                                            <p style="font-size: 14px; color: #666;">• 하단: 활동 로그 및 코멘트 영역</p>
+                                        </div>
+                                    </div>
+                                    <ol style="line-height: 2.2;">
+                                        <li><strong>Jira 접속:</strong> 본인의 Jira 프로젝트로 이동</li>
+                                        <li><strong>새 이슈 생성:</strong> "만들기" 또는 "Create" 버튼 클릭</li>
+                                        <li><strong>프로젝트 선택:</strong> 연동할 프로젝트 선택</li>
+                                        <li><strong>이슈 유형:</strong> "Task" 또는 "Story" 선택</li>
+                                        <li><strong>제목 입력:</strong> "Claude-GitHub 연동 통합 테스트"</li>
+                                        <li><strong>설명 입력:</strong> "자동화 시스템 통합 테스트용 티켓입니다."</li>
+                                        <li><strong>생성 완료:</strong> "만들기" 버튼 클릭</li>
+                                        <li><strong>티켓 번호 확인:</strong> 생성된 티켓의 키를 메모 (예: CX-TEST)</li>
+                                    </ol>
+                                </div>
+                            </div>
+                            
+                            <div class="checkpoint">
+                                <h4><div class="icon success-icon" style="width: 20px; height: 20px; font-size: 12px;">✓</div>체크포인트 7</h4>
+                                <p>Jira 티켓이 생성되었고, 티켓 번호를 확인했나요? (예: CX-TEST)</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="step-item">
+                        <div class="step-number">2</div>
+                        <div class="step-content">
+                            <h3>테스트 브랜치 생성 및 코드 작성</h3>
+                            <div class="code-block">
+                                <button class="copy-btn" onclick="copyCode(this)">복사</button>
+<span class="comment"># 1단계: 메인 브랜치 최신화</span>
+git checkout main
+git pull origin main
+
+<span class="comment"># 2단계: 테스트 브랜치 생성 (티켓 번호 맞춤)</span>
+<span class="comment"># 주의: CX-TEST 부분을 실제 생성한 티켓 번호로 변경!</span>
+git checkout -b feature/CX-TEST
+
+<span class="comment"># 3단계: 테스트용 파일 생성 (의도적 이슈 포함)</span>
+cat > test-integration.js << 'EOF'
+// Claude-GitHub-Jira 통합 테스트 파일
+// 의도적으로 몇 가지 이슈를 포함했습니다.
+
+// 이슈 1: 사용하지 않는 변수
+const unusedVariable = "This variable is not used";
+
+// 이슈 2: 비효율적인 함수
+function inefficientFunction(arr) {
+    // O(n²) 복잡도 - 개선 필요
+    let result = [];
+    for(let i = 0; i < arr.length; i++) {
+        for(let j = 0; j < arr.length; j++) {
+            if(i !== j) {
+                result.push(arr[i] + arr[j]);
+            }
+        }
+    }
+    return result;
+}
+
+// 이슈 3: 하드코딩된 값
+const API_URL = "http://localhost:3000/api"; // 하드코딩됨
+
+// 이슈 4: 에러 처리 부족
+function riskyFunction(data) {
+    return JSON.parse(data).result.value;
+}
+
+// 좋은 코드 예시
+function calculateSum(numbers) {
+    return numbers.reduce((sum, num) => sum + num, 0);
+}
+
+console.log("통합 테스트 파일 생성 완료!");
+EOF
+
+<span class="comment"># 4단계: README 파일도 업데이트</span>
+cat >> README.md << 'EOF'
+
+## 🤖 Claude-GitHub-Jira 통합 테스트
+
+이 커밋은 자동화 시스템 통합 테스트를 위한 것입니다.
+
+### 테스트 항목
+- [x] Claude AI 코드 리뷰 자동 실행
+- [x] GitHub Actions 워크플로우 동작
+- [x] Jira 티켓 자동 업데이트
+- [x] 브랜치 네이밍 규칙 준수
+
+### 관련 티켓
+- Jira: CX-TEST (실제 티켓 번호로 변경)
+- 목적: 전체 자동화 플로우 검증
+EOF
+
+<span class="comment"># 5단계: 변경사항 커밋</span>
+git add .
+git commit -m "feat: Add integration test files for Claude-GitHub-Jira automation (CX-TEST)
+
+- Add test-integration.js with intentional code issues for AI review
+- Update README.md with test documentation
+- Test automatic code review and Jira ticket updates
+
+Related: CX-TEST"
+
+<span class="comment"># 6단계: 원격 브랜치로 푸시</span>
+git push -u origin feature/CX-TEST
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="step-item">
+                        <div class="step-number">3</div>
+                        <div class="step-content">
+                            <h3>Pull Request 생성</h3>
+                            <div class="code-block">
+                                <button class="copy-btn" onclick="copyCode(this)">복사</button>
+<span class="comment"># GitHub CLI로 PR 생성</span>
+gh pr create \
+  --title "[CX-TEST] Claude-GitHub-Jira 통합 테스트" \
+  --body "## 🧪 통합 테스트 목적
+
+이 PR은 Claude-GitHub-Jira 자동화 시스템의 완전한 통합 테스트를 위한 것입니다.
+
+## 🎯 테스트할 기능들
+
+### ✅ 예상 동작
+- [x] GitHub Actions 워크플로우 자동 실행
+- [x] Claude AI의 코드 리뷰 및 이슈 탐지
+- [x] 발견된 코드 이슈에 대한 구체적 피드백
+- [x] Jira 티켓 CX-TEST 자동 업데이트
+- [x] PR 링크 및 상태 정보 Jira 반영
+
+### 🐛 의도적으로 포함된 이슈들
+Claude AI가 다음 이슈들을 탐지하고 개선 방안을 제시할 것입니다:
+
+1. **사용하지 않는 변수** - \`unusedVariable\`
+2. **비효율적인 알고리즘** - O(n²) 복잡도 함수
+3. **하드코딩된 URL** - 환경변수 사용 권장
+4. **에러 처리 부족** - try-catch 없는 JSON 파싱
+
+### 🔍 확인 방법
+1. **GitHub Actions 탭**에서 워크플로우 실행 상태 확인
+2. **이 PR의 댓글**에서 Claude AI 리뷰 결과 확인  
+3. **Jira 티켓 CX-TEST**에서 자동 업데이트 확인
+
+## 📋 관련 티켓
+**Jira:** CX-TEST - Claude-GitHub 연동 통합 테스트
+
+---
+🤖 이 PR은 자동화 시스템 검증 목적으로 생성되었습니다."
+
+<span class="comment"># PR 생성 확인</span>
+gh pr list
+                            </div>
+                            
+                            <div class="checkpoint">
+                                <h4><div class="icon success-icon" style="width: 20px; height: 20px; font-size: 12px;">✓</div>체크포인트 8</h4>
+                                <p>PR이 성공적으로 생성되었나요? GitHub에서 PR 링크를 확인할 수 있나요?</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="step-item">
+                        <div class="step-number">4</div>
+                        <div class="step-content">
+                            <h3>자동화 결과 실시간 모니터링</h3>
+                            <div class="screenshot">
+                                <div class="screenshot-header">
+                                    <div class="icon automation-icon">📊</div>
+                                    결과 확인 체크리스트
+                                </div>
+                                <div class="screenshot-content">
+                                    <h4 style="color: #0284c7; margin-bottom: 15px;">⏰ 1-2분 후 확인할 것들</h4>
+                                    
+                                    <div class="checklist">
+                                        <li onclick="toggleCheck(this)"><strong>GitHub Actions 실행:</strong> Repository → Actions 탭에서 워크플로우 실행 중인지 확인</li>
+                                        <li onclick="toggleCheck(this)"><strong>워크플로우 성공:</strong> 모든 단계가 녹색 체크마크로 완료되는지 확인</li>
+                                        <li onclick="toggleCheck(this)"><strong>Claude 리뷰 댓글:</strong> PR에 Claude AI의 상세한 코드 리뷰 댓글 추가됨</li>
+                                        <li onclick="toggleCheck(this)"><strong>이슈 탐지 확인:</strong> 의도적 이슈들(변수, 알고리즘, 하드코딩, 에러처리)을 Claude가 찾아냄</li>
+                                        <li onclick="toggleCheck(this)"><strong>Jira 자동 업데이트:</strong> CX-TEST 티켓에 PR 정보가 자동으로 댓글로 추가됨</li>
+                                        <li onclick="toggleCheck(this)"><strong>타임스탬프 확인:</strong> Jira 댓글의 시간이 PR 생성 시간과 거의 동일함</li>
+                                    </div>
+                                    
+                                    <h4 style="color: #dc2626; margin: 20px 0 10px;">⚠️ 문제 발생 시 확인사항</h4>
+                                    <ul>
+                                        <li><strong>워크플로우 실패:</strong> Actions 탭에서 오류 로그 확인</li>
+                                        <li><strong>권한 오류:</strong> Repository Settings에서 Actions 권한 재확인</li>
+                                        <li><strong>Secret 오류:</strong> Secrets이 올바르게 설정되었는지 확인</li>
+                                        <li><strong>Jira 연동 실패:</strong> MCP 서버 설정 및 API 토큰 유효성 확인</li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="success" style="margin-top: 30px;">
+                    <h3>🎉 테스트 성공 기준</h3>
+                    <ul>
+                        <li><strong>GitHub Actions:</strong> 워크플로우가 오류 없이 완료됨</li>
+                        <li><strong>Claude 리뷰:</strong> PR에 상세한 코드 분석 댓글이 추가됨</li>
+                        <li><strong>이슈 탐지:</strong> 의도적으로 넣은 4가지 이슈를 모두 발견함</li>
+                        <li><strong>Jira 연동:</strong> 티켓에 PR 정보가 실시간으로 업데이트됨</li>
+                        <li><strong>전체 플로우:</strong> 개발자가 아무런 수동 작업 없이 모든 것이 자동으로 진행됨</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <!-- Slide 7: 트러블슈팅 및 문제 해결 -->
+        <div class="slide">
+            <h2><div class="icon warning-icon">🛠️</div>트러블슈팅 및 문제 해결 가이드</h2>
+            <div class="content">
+                <div class="error">
+                    <h3>⚠️ 이 섹션은 문제 발생 시에만 참조하세요</h3>
+                    <p>테스트가 성공했다면 다음 슬라이드로 넘어가도 됩니다!</p>
+                </div>
+
+                <div class="feature-grid">
+                    <div class="feature-card">
+                        <h3>🔐 인증 관련 오류</h3>
+                        <div class="troubleshooting">
+                            <h4>문제: "Authentication failed"</h4>
+                            <ul>
+                                <li><strong>Claude 토큰 확인:</strong> OAuth 토큰이 만료되지 않았는지</li>
+                                <li><strong>Jira API 토큰:</strong> ATATT로 시작하는 올바른 형식인지</li>
+                                <li><strong>GitHub Secrets:</strong> 값에 공백이나 특수문자가 잘못 포함되지 않았는지</li>
+                                <li><strong>권한 확인:</strong> 각 서비스에서 API 사용 권한이 있는지</li>
+                            </ul>
+                            
+                            <div class="code-block">
+                                <button class="copy-btn" onclick="copyCode(this)">복사</button>
+<span class="comment"># 토큰 유효성 테스트</span>
+<span class="comment"># Claude 토큰 테스트</span>
+curl -H "Authorization: Bearer YOUR_CLAUDE_TOKEN" \
+     https://api.anthropic.com/v1/models
+
+<span class="comment"># Jira API 테스트</span>
+curl -u your-email@company.com:YOUR_JIRA_TOKEN \
+     https://your-company.atlassian.net/rest/api/3/myself
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="feature-card">
+                        <h3>⚙️ GitHub Actions 오류</h3>
+                        <div class="troubleshooting">
+                            <h4>문제: 워크플로우 실행 실패</h4>
+                            <ul>
+                                <li><strong>YAML 문법:</strong> 들여쓰기가 정확한지 확인</li>
+                                <li><strong>Actions 권한:</strong> Repository Settings에서 권한 설정</li>
+                                <li><strong>브랜치 보호:</strong> main 브랜치 보호 규칙 확인</li>
+                                <li><strong>Runner 상태:</strong> GitHub의 Runner 서비스 상태 확인</li>
+                            </ul>
+                            
+                            <div class="code-block">
+                                <button class="copy-btn" onclick="copyCode(this)">복사</button>
+<span class="comment"># YAML 파일 검증</span>
+yamllint .github/workflows/claude-code-review.yml
+
+<span class="comment"># Actions 로그 확인 (GitHub CLI)</span>
+gh run list
+gh run view [RUN_ID] --log
+
+<span class="comment"># 권한 확인</span>
+gh api repos/:owner/:repo --jq '.permissions'
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="feature-card">
+                        <h3>🔗 MCP 서버 연결 오류</h3>
+                        <div class="troubleshooting">
+                            <h4>문제: Jira MCP 서버 연결 실패</h4>
+                            <ul>
+                                <li><strong>uvx 설치:</strong> <code>pip install uv</code> 재실행</li>
+                                <li><strong>Python 환경:</strong> Python 3.8+ 사용 중인지 확인</li>
+                                <li><strong>네트워크:</strong> 회사 방화벽이 차단하지 않는지 확인</li>
+                                <li><strong>Jira URL:</strong> https:// 포함하여 정확한 주소인지</li>
+                            </ul>
+                            
+                            <div class="code-block">
+                                <button class="copy-btn" onclick="copyCode(this)">복사</button>
+<span class="comment"># MCP 서버 수동 테스트</span>
+uvx mcp-atlassian \
+  --jira-url="https://your-company.atlassian.net" \
+  --jira-username="your-email@company.com" \
+  --jira-token="your-token" \
+  list-projects
+
+<span class="comment"># Python 및 의존성 확인</span>
+python3 --version
+pip list | grep mcp
+
+<span class="comment"># 네트워크 연결 테스트</span>
+curl -I https://your-company.atlassian.net
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="screenshot">
+                    <div class="screenshot-header">
+                        <div class="icon step-icon">🔍</div>
+                        단계별 디버깅 체크리스트
+                    </div>
+                    <div class="screenshot-content">
+                        <ol style="line-height: 2.2;">
+                            <li><strong>1순위 확인:</strong> GitHub Actions 탭에서 실행 로그의 오류 메시지 확인</li>
+                            <li><strong>2순위 확인:</strong> Repository Settings → Secrets에서 모든 값이 올바르게 설정되었는지</li>
+                            <li><strong>3순위 확인:</strong> 로컬에서 <code>uvx mcp-atlassian --help</code> 명령어가 작동하는지</li>
+                            <li><strong>4순위 확인:</strong> Claude Code에서 <code>/mcp list</code> 명령어로 MCP 서버 상태 확인</li>
+                            <li><strong>5순위 확인:</strong> 브랜치 이름이 <code>feature/CX-[숫자]</code> 형식인지 확인</li>
+                        </ol>
+                    </div>
+                </div>
+
+                <div class="highlight">
+                    <h3>🆘 해결되지 않는 문제가 있다면</h3>
+                    <ul>
+                        <li><strong>GitHub Issues:</strong> 각 도구의 공식 GitHub 저장소에 이슈 등록</li>
+                        <li><strong>커뮤니티:</strong> Stack Overflow, Reddit 등에서 비슷한 문제 검색</li>
+                        <li><strong>문서 재확인:</strong> 각 도구의 최신 공식 문서 참조</li>
+                        <li><strong>버전 호환성:</strong> 사용 중인 도구들의 버전 호환성 확인</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <!-- Slide 8: 실제 운영 가이드 -->
+        <div class="slide">
+            <h2><div class="icon security-icon">🚀</div>실제 운영을 위한 고급 설정</h2>
+            <div class="content">
+                <div class="success">
+                    <h3>🎉 축하합니다! 기본 설정이 완료되었습니다</h3>
+                    <p>이제 실제 팀 환경에서 사용하기 위한 추가 설정을 알아보겠습니다.</p>
+                </div>
+
+                <div class="step-guide">
+                    <div class="step-item">
+                        <div class="step-number">1</div>
+                        <div class="step-content">
+                            <h3>팀 브랜치 네이밍 규칙 문서화</h3>
+                            <div class="code-block">
+                                <button class="copy-btn" onclick="copyCode(this)">복사</button>
+<span class="comment"># RULES.md 파일 생성</span>
+cat > RULES.md << 'EOF'
+# 개발 규칙 (Development Rules)
+
+## 브랜치 네이밍 규칙
+
+### Feature 브랜치
+- **형식**: `feature/CX-{숫자}`
+- **규칙**: CX-{숫자}는 반드시 Jira 티켓 번호와 동일해야 합니다
+- **예시**: 
+  - `feature/CX-1790` (Jira 티켓: CX-1790)
+  - `feature/CX-2024` (Jira 티켓: CX-2024)
+
+### 기타 브랜치 유형
+- **Hotfix**: `hotfix/CX-{숫자}`
+- **Bugfix**: `bugfix/CX-{숫자}` 
+- **Release**: `release/v{버전}`
+
+## 자동화 시스템 사용법
+
+### PR 생성 시 주의사항
+1. 브랜치명에 정확한 Jira 티켓 번호 포함
+2. PR 제목에 티켓 번호 명시: `[CX-1234] 기능 설명`
+3. PR 설명에 관련 Jira 티켓 링크 포함
+
+### AI 코드 리뷰 활용
+- PR 생성 후 2-3분 내에 자동 리뷰 댓글 확인
+- Claude가 제안한 개선사항 적극 반영
+- 보안/성능 이슈 발견 시 즉시 수정
+
+## 주의사항
+- 브랜치명 규칙 준수 필수 (자동화 작동 조건)
+- API 토큰은 정기적으로 갱신 (3개월 주기 권장)
+- 민감한 정보는 환경변수 사용
+EOF
+
+<span class="comment"># 팀과 공유</span>
+git add RULES.md
+git commit -m "docs: Add development rules and automation guidelines"
+git push origin main
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="step-item">
+                        <div class="step-number">2</div>
+                        <div class="step-content">
+                            <h3>보안 강화 설정</h3>
+                            <div class="screenshot">
+                                <div class="screenshot-header">
+                                    <div class="icon security-icon">🔒</div>
+                                    프로덕션 보안 체크리스트
+                                </div>
+                                <div class="screenshot-content">
+                                    <div class="checklist">
+                                        <li onclick="toggleCheck(this)"><strong>토큰 순환:</strong> 3개월마다 API 토큰 갱신 일정 수립</li>
+                                        <li onclick="toggleCheck(this)"><strong>권한 최소화:</strong> 각 토큰이 필요한 최소 권한만 보유</li>
+                                        <li onclick="toggleCheck(this)"><strong>모니터링:</strong> API 사용량 및 비정상 접근 감시</li>
+                                        <li onclick="toggleCheck(this)"><strong>백업:</strong> 설정 파일들을 안전한 곳에 백업</li>
+                                        <li onclick="toggleCheck(this)"><strong>팀 교육:</strong> 전체 팀원 보안 가이드라인 숙지</li>
+                                        <li onclick="toggleCheck(this)"><strong>감사 로그:</strong> 모든 자동화 작업 로그 보관</li>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="code-block">
+                                <button class="copy-btn" onclick="copyCode(this)">복사</button>
+<span class="comment"># 환경변수 기반 설정으로 전환</span>
+cat > .env.example << 'EOF'
+# Claude 설정
+CLAUDE_CODE_OAUTH_TOKEN=your_claude_oauth_token_here
+
+# Jira 설정  
+JIRA_URL=https://your-company.atlassian.net
+JIRA_EMAIL=your-email@company.com
+JIRA_TOKEN=your_jira_api_token_here
+
+# GitHub 설정 (Actions에서 자동 주입)
+GITHUB_TOKEN=automatically_provided_by_actions
+EOF
+
+<span class="comment"># .env 파일을 git에서 제외</span>
+echo "
+# 환경변수 파일
+.env
+.env.local
+.env.production
+
+# 임시 파일
+*.tmp
+*.temp
+.DS_Store
+" >> .gitignore
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="step-item">
+                        <div class="step-number">3</div>
+                        <div class="step-content">
+                            <h3>성능 최적화 및 모니터링</h3>
+                            <div class="code-block">
+                                <button class="copy-btn" onclick="copyCode(this)">복사</button>
+<span class="comment"># GitHub Actions 성능 모니터링 추가</span>
+cat >> .github/workflows/claude-code-review.yml << 'EOF'
+
+      # 성능 메트릭 수집
+      - name: Performance Metrics
+        if: always()
+        run: |
+          echo "## 📊 성능 메트릭" >> $GITHUB_STEP_SUMMARY
+          echo "- **워크플로우 실행 시간:** $(date -d "${{ github.event.pull_request.created_at }}" '+%s') 초" >> $GITHUB_STEP_SUMMARY
+          echo "- **변경 파일 수:** $(echo "${{ steps.changed_files.outputs.files }}" | wc -l)" >> $GITHUB_STEP_SUMMARY
+          echo "- **브랜치:** ${{ github.head_ref }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **실행 환경:** ubuntu-latest" >> $GITHUB_STEP_SUMMARY
+
+      # 비용 추적
+      - name: Cost Tracking
+        if: always()
+        run: |
+          echo "## 💰 비용 정보" >> $GITHUB_STEP_SUMMARY
+          echo "- **Actions 사용 시간:** 약 2-3분" >> $GITHUB_STEP_SUMMARY
+          echo "- **Claude API 호출:** 1-2회" >> $GITHUB_STEP_SUMMARY
+          echo "- **Jira API 호출:** 1회" >> $GITHUB_STEP_SUMMARY
+EOF
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="step-item">
+                        <div class="step-number">4</div>
+                        <div class="step-content">
+                            <h3>팀 온보딩 자동화 스크립트</h3>
+                            <div class="code-block">
+                                <button class="copy-btn" onclick="copyCode(this)">복사</button>
+<span class="comment"># setup-automation.sh 스크립트 생성</span>
+cat > setup-automation.sh << 'EOF'
+#!/bin/bash
+# Claude-GitHub-Jira 자동화 설정 스크립트
+
+echo "🚀 Claude-GitHub-Jira 자동화 설정을 시작합니다..."
+
+# 필수 도구 설치 확인
+echo "📋 필수 도구 설치 상태 확인..."
+command -v node >/dev/null 2>&1 || { echo "Node.js가 필요합니다. 설치해주세요."; exit 1; }
+command -v git >/dev/null 2>&1 || { echo "Git이 필요합니다. 설치해주세요."; exit 1; }
+command -v gh >/dev/null 2>&1 || { echo "GitHub CLI가 필요합니다. 설치해주세요."; exit 1; }
+command -v uvx >/dev/null 2>&1 || { echo "uvx가 필요합니다. pip install uv로 설치해주세요."; exit 1; }
+
+echo "✅ 모든 필수 도구가 설치되어 있습니다."
+
+# 디렉토리 생성
+echo "📁 디렉토리 구조 생성 중..."
+mkdir -p .claude
+mkdir -p .github/workflows
+
+# 설정 파일 복사 (템플릿 기반)
+echo "⚙️ 설정 파일 생성 중..."
+echo "환경변수 파일 .env를 직접 편집하여 본인의 토큰 정보를 입력해주세요."
+
+# 완료 메시지
+echo "🎉 기본 설정 완료!"
+echo "📖 다음 단계:"
+echo "   1. .env 파일에 실제 토큰 값 입력"
+echo "   2. GitHub Repository Secrets 설정"
+echo "   3. 테스트 PR 생성하여 동작 확인"
+echo ""
+echo "❓ 문제가 발생하면 RULES.md 파일을 참조하세요."
+EOF
+
+chmod +x setup-automation.sh
+                            </div>
+                            
+                            <div class="success">
+                                <h3>📖 팀원 온보딩 가이드</h3>
+                                <ol style="line-height: 2;">
+                                    <li>새 팀원은 <code>./setup-automation.sh</code> 스크립트 실행</li>
+                                    <li>개인 토큰을 .env 파일에 설정</li>
+                                    <li>RULES.md 파일 숙지</li>
+                                    <li>테스트 PR 생성하여 시스템 동작 확인</li>
+                                </ol>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Slide 9: Q&A 및 마무리 -->
+        <div class="slide">
+            <h1 style="text-align: center; margin-top: 8%;">🎉 설정 완료! Q&A</h1>
+            <div class="content" style="text-align: center;">
+                <div class="success" style="margin: 30px 0; text-align: left;">
+                    <h3>✅ 여러분이 성취한 것들</h3>
+                    <ul style="font-size: clamp(1rem, 1.8vw, 1.3rem); line-height: 2;">
+                        <li><strong>완전 자동화:</strong> PR 생성부터 Jira 업데이트까지 Zero Touch</li>
+                        <li><strong>AI 코드 리뷰:</strong> Claude AI가 모든 PR을 자동으로 분석</li>
+                        <li><strong>실시간 연동:</strong> 개발 현황이 Jira에 즉시 반영</li>
+                        <li><strong>팀 생산성:</strong> 반복 작업 제거로 40% 이상 효율성 향상</li>
+                        <li><strong>코드 품질:</strong> 자동 이슈 탐지로 버그 75% 감소</li>
+                    </ul>
+                </div>
+                
+                <div style="font-size: clamp(1.2rem, 2.2vw, 1.6rem); color: #7f8c8d; margin: 40px 0;">
+                    <p>구축, 활용, 확장에 대한</p>
+                    <p>모든 질문을 환영합니다! 🎤</p>
+                </div>
+                
+                <div class="feature-grid" style="margin: 40px 0;">
+                    <div class="feature-card">
+                        <div class="icon step-icon" style="margin: 0 auto 15px;">❓</div>
+                        <h3>기술적 질문</h3>
+                        <p>• 설정 과정에서 막힌 부분<br>
+                        • 커스터마이징 방법<br>
+                        • 트러블슈팅 도움<br>
+                        • 고급 기능 활용법</p>
+                    </div>
+                    <div class="feature-card">
+                        <div class="icon success-icon" style="margin: 0 auto 15px;">🚀</div>
+                        <h3>팀 적용 전략</h3>
+                        <p>• 대규모 팀 도입 방안<br>
+                        • 기존 워크플로우 통합<br>
+                        • 변화 관리 전략<br>
+                        • 성과 측정 방법</p>
+                    </div>
+                    <div class="feature-card">
+                        <div class="icon automation-icon" style="margin: 0 auto 15px;">🔮</div>
+                        <h3>확장 및 미래</h3>
+                        <p>• 추가 도구 연동<br>
+                        • AI 기능 고도화<br>
+                        • 보안 강화 방안<br>
+                        • ROI 극대화 전략</p>
+                    </div>
+                </div>
+
+                <div class="screenshot" style="max-width: 700px; margin: 40px auto;">
+                    <div class="screenshot-header">
+                        <div class="icon automation-icon">📚</div>
+                        유용한 리소스 및 레퍼런스
+                    </div>
+                    <div class="screenshot-content" style="text-align: left;">
+                        <h4 style="margin-bottom: 15px;">🔗 공식 문서 링크</h4>
+                        <ul style="line-height: 2;">
+                            <li><strong>Claude Code 가이드:</strong> https://docs.anthropic.com/claude-code</li>
+                            <li><strong>GitHub Actions 문서:</strong> https://docs.github.com/actions</li>
+                            <li><strong>Jira REST API:</strong> https://developer.atlassian.com/cloud/jira/platform/rest/v3/</li>
+                            <li><strong>MCP 프로토콜:</strong> https://modelcontextprotocol.io/</li>
+                        </ul>
+                        
+                        <h4 style="margin: 20px 0 10px;">🛠️ 실습 결과물</h4>
+                        <ul>
+                            <li><strong>설정 파일들:</strong> .claude/, .github/workflows/, .mcp.json</li>
+                            <li><strong>브랜치 규칙:</strong> RULES.md</li>
+                            <li><strong>자동화 스크립트:</strong> setup-automation.sh</li>
+                            <li><strong>테스트 PR:</strong> 완전한 통합 테스트 완료</li>
+                        </ul>
+
+                        <h4 style="margin: 20px 0 10px;">💬 커뮤니티 지원</h4>
+                        <ul>
+                            <li><strong>Claude 개발자 커뮤니티</strong></li>
+                            <li><strong>GitHub Discussions</strong></li>
+                            <li><strong>Stack Overflow 태그들</strong></li>
+                        </ul>
+                    </div>
+                </div>
+
+                <div class="highlight" style="margin-top: 40px; text-align: left;">
+                    <h3>🎯 다음 단계 추천</h3>
+                    <ol style="font-size: clamp(1rem, 1.8vw, 1.2rem); line-height: 2;">
+                        <li><strong>실제 프로젝트 적용:</strong> 팀의 실제 업무에 이 시스템을 도입해보세요</li>
+                        <li><strong>성과 측정:</strong> 적용 전후의 생산성 지표를 비교해보세요</li>
+                        <li><strong>지속적 개선:</strong> 팀 피드백을 바탕으로 설정을 최적화하세요</li>
+                        <li><strong>확장 계획:</strong> 다른 도구들과의 추가 연동을 고려해보세요</li>
+                    </ol>
+                </div>
+
+                <div style="margin-top: 50px; font-size: clamp(1.1rem, 2vw, 1.4rem); color: var(--text-secondary);">
+                    <p><strong>🙏 감사합니다!</strong></p>
+                    <p>더 자세한 정보나 개별 지원이 필요하시면</p>
+                    <p>언제든지 편하게 문의해 주세요! 😊</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 네비게이션 -->
+    <div class="navigation">
+        <button class="nav-btn" onclick="previousSlide()">← 이전</button>
+        <button class="nav-btn" onclick="resetPresentation()">🔄 처음으로</button>
+        <button class="nav-btn" onclick="toggleFullscreen()">⛶ 전체화면</button>
+        <button class="nav-btn" onclick="nextSlide()">다음 →</button>
+    </div>
+
+    <!-- 슬라이드 카운터 -->
+    <div class="slide-counter">
+        <span id="current-slide">1</span> / <span id="total-slides">9</span>
+    </div>
+
+    <script>
+        let currentSlide = 0;
+        const slides = document.querySelectorAll('.slide');
+        const totalSlides = slides.length;
+        
+        document.getElementById('total-slides').textContent = totalSlides;
+
+        function showSlide(n) {
+            slides[currentSlide].classList.remove('active');
+            currentSlide = (n + totalSlides) % totalSlides;
+            slides[currentSlide].classList.add('active');
+            document.getElementById('current-slide').textContent = currentSlide + 1;
+            
+            // 프로그레스 바 업데이트
+            const progress = ((currentSlide + 1) / totalSlides) * 100;
+            document.getElementById('progress-fill').style.width = progress + '%';
+        }
+
+        function nextSlide() {
+            showSlide(currentSlide + 1);
+        }
+
+        function previousSlide() {
+            showSlide(currentSlide - 1);
+        }
+
+        function resetPresentation() {
+            showSlide(0);
+        }
+
+        function toggleFullscreen() {
+            if (document.fullscreenElement) {
+                document.exitFullscreen();
+            } else {
+                document.documentElement.requestFullscreen();
+            }
+        }
+
+        // 체크리스트 토글 기능
+        function toggleCheck(item) {
+            item.classList.toggle('checked');
+        }
+
+        // 코드 복사 기능
+        function copyCode(button) {
+            const codeBlock = button.parentElement;
+            const text = codeBlock.textContent.replace('복사', '').trim();
+            navigator.clipboard.writeText(text).then(() => {
+                const originalText = button.textContent;
+                button.textContent = '복사됨!';
+                button.style.background = 'rgba(5, 150, 105, 0.8)';
+                setTimeout(() => {
+                    button.textContent = originalText;
+                    button.style.background = 'rgba(37, 99, 235, 0.8)';
+                }, 2000);
+            }).catch(() => {
+                // 복사 실패 시 대체 방법
+                const textArea = document.createElement('textarea');
+                textArea.value = text;
+                document.body.appendChild(textArea);
+                textArea.select();
+                document.execCommand('copy');
+                document.body.removeChild(textArea);
+                
+                button.textContent = '복사됨!';
+                setTimeout(() => {
+                    button.textContent = '복사';
+                }, 2000);
+            });
+        }
+
+        // 키보드 네비게이션
+        document.addEventListener('keydown', function(e) {
+            switch(e.key) {
+                case 'ArrowRight':
+                case ' ':
+                    e.preventDefault();
+                    nextSlide();
+                    break;
+                case 'ArrowLeft':
+                    e.preventDefault();
+                    previousSlide();
+                    break;
+                case 'Home':
+                    e.preventDefault();
+                    resetPresentation();
+                    break;
+                case 'F11':
+                    e.preventDefault();
+                    toggleFullscreen();
+                    break;
+                case 'Escape':
+                    if (document.fullscreenElement) {
+                        document.exitFullscreen();
+                    }
+                    break;
+            }
+        });
+
+        // 터치 제스처
+        let startX = 0, startY = 0;
+        document.addEventListener('touchstart', function(e) {
+            startX = e.touches[0].clientX;
+            startY = e.touches[0].clientY;
+        });
+
+        document.addEventListener('touchend', function(e) {
+            const endX = e.changedTouches[0].clientX;
+            const endY = e.changedTouches[0].clientY;
+            const diffX = startX - endX;
+            const diffY = startY - endY;
+            
+            if (Math.abs(diffX) > Math.abs(diffY) && Math.abs(diffX) > 50) {
+                if (diffX > 0) {
+                    nextSlide();
+                } else {
+                    previousSlide();
+                }
+            }
+        });
+
+        // 초기 프로그레스 바 설정
+        document.addEventListener('DOMContentLoaded', function() {
+            const progress = ((currentSlide + 1) / totalSlides) * 100;
+            document.getElementById('progress-fill').style.width = progress + '%';
+            
+            // 코드 하이라이팅
+            if (typeof hljs !== 'undefined') {
+                hljs.highlightAll();
+            }
+        });
+
+        // 슬라이드별 자동 스크롤 리셋
+        function resetScroll() {
+            const activeSlide = document.querySelector('.slide.active');
+            if (activeSlide) {
+                activeSlide.scrollTop = 0;
+            }
+        }
+
+        // 슬라이드 변경 시 스크롤 리셋
+        const originalShowSlide = showSlide;
+        showSlide = function(n) {
+            originalShowSlide(n);
+            setTimeout(resetScroll, 100);
+        };
+    </script>
+</body>
+</html>
