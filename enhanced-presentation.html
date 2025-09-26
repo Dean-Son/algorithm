@@ -1,0 +1,1485 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GitHub-Jira 연동 및 자동화 워크플로우 - 고도화 버전</title>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;700;900&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    <style>
+        :root {
+            --primary-color: #2563eb;
+            --secondary-color: #7c3aed;
+            --success-color: #059669;
+            --warning-color: #d97706;
+            --error-color: #dc2626;
+            --bg-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 50%, #2563eb 100%);
+            --slide-width: 95vw;
+            --slide-height: 90vh;
+            --text-primary: #1f2937;
+            --text-secondary: #6b7280;
+            --border-radius: 16px;
+            --shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Noto Sans KR', sans-serif;
+            background: var(--bg-gradient);
+            overflow: hidden;
+            height: 100vh;
+        }
+        
+        /* 16:9, 4:3, 21:9 대응 */
+        @media (aspect-ratio: 16/9) {
+            :root {
+                --slide-width: 90vw;
+                --slide-height: 85vh;
+            }
+        }
+        
+        @media (aspect-ratio: 4/3) {
+            :root {
+                --slide-width: 85vw;
+                --slide-height: 90vh;
+            }
+        }
+        
+        @media (aspect-ratio: 21/9) {
+            :root {
+                --slide-width: 95vw;
+                --slide-height: 80vh;
+            }
+        }
+        
+        .presentation {
+            width: 100vw;
+            height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+        }
+        
+        .slide {
+            width: var(--slide-width);
+            height: var(--slide-height);
+            background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
+            border-radius: var(--border-radius);
+            box-shadow: var(--shadow);
+            padding: clamp(30px, 4vw, 60px);
+            display: none;
+            position: relative;
+            overflow-y: auto;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        
+        .slide.active {
+            display: block;
+            animation: slideIn 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        
+        @keyframes slideIn {
+            from {
+                transform: translateX(100px);
+                opacity: 0;
+                scale: 0.95;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+                scale: 1;
+            }
+        }
+        
+        /* 반응형 타이포그래피 */
+        h1 {
+            color: var(--text-primary);
+            font-size: clamp(2rem, 5vw, 4rem);
+            font-weight: 900;
+            margin-bottom: clamp(20px, 3vw, 40px);
+            text-align: center;
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            position: relative;
+        }
+        
+        h1::after {
+            content: '';
+            position: absolute;
+            bottom: -10px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 60%;
+            height: 4px;
+            background: linear-gradient(90deg, var(--primary-color), var(--secondary-color));
+            border-radius: 2px;
+        }
+        
+        h2 {
+            color: var(--text-primary);
+            font-size: clamp(1.5rem, 3.5vw, 2.5rem);
+            font-weight: 700;
+            margin-bottom: clamp(15px, 2.5vw, 30px);
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+        
+        h3 {
+            color: var(--text-secondary);
+            font-size: clamp(1.2rem, 2.5vw, 1.8rem);
+            font-weight: 600;
+            margin-bottom: clamp(10px, 2vw, 20px);
+        }
+        
+        .content {
+            font-size: clamp(1rem, 2vw, 1.4rem);
+            line-height: 1.7;
+            color: var(--text-primary);
+        }
+        
+        /* 아이콘 시스템 */
+        .icon {
+            width: clamp(35px, 4vw, 50px);
+            height: clamp(35px, 4vw, 50px);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: clamp(16px, 2vw, 24px);
+            font-weight: bold;
+            color: white;
+            box-shadow: 0 8px 16px rgba(0, 0, 0, 0.1);
+        }
+        
+        .github-icon { 
+            background: linear-gradient(135deg, #24292e, #0366d6);
+        }
+        .jira-icon { 
+            background: linear-gradient(135deg, #0052cc, #2684ff);
+        }
+        .automation-icon { 
+            background: linear-gradient(135deg, #059669, #10b981);
+        }
+        .workflow-icon { 
+            background: linear-gradient(135deg, #dc2626, #ef4444);
+        }
+        .success-icon {
+            background: linear-gradient(135deg, #059669, #34d399);
+        }
+        .warning-icon {
+            background: linear-gradient(135deg, #d97706, #fbbf24);
+        }
+        
+        /* 리스트 스타일링 */
+        ul {
+            list-style: none;
+            padding-left: 0;
+        }
+        
+        li {
+            margin: clamp(10px, 1.5vw, 20px) 0;
+            padding: clamp(15px, 2vw, 25px);
+            background: rgba(255, 255, 255, 0.7);
+            border-radius: 12px;
+            border-left: 4px solid var(--primary-color);
+            position: relative;
+            backdrop-filter: blur(10px);
+            transition: all 0.3s ease;
+        }
+        
+        li:hover {
+            transform: translateX(5px);
+            box-shadow: 0 8px 25px rgba(37, 99, 235, 0.15);
+        }
+        
+        li::before {
+            content: "✨";
+            margin-right: 12px;
+            font-size: 1.2em;
+            filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.1));
+        }
+        
+        /* 코드 블록 */
+        .code-block {
+            background: #0f172a;
+            color: #e2e8f0;
+            padding: clamp(20px, 3vw, 30px);
+            border-radius: 12px;
+            font-family: 'JetBrains Mono', monospace;
+            margin: clamp(15px, 2.5vw, 25px) 0;
+            overflow-x: auto;
+            font-size: clamp(0.8rem, 1.5vw, 1.1rem);
+            box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.1);
+            border: 1px solid rgba(148, 163, 184, 0.2);
+        }
+        
+        .code-block .keyword {
+            color: #8b5cf6;
+            font-weight: bold;
+        }
+        
+        .code-block .string {
+            color: #10b981;
+        }
+        
+        .code-block .comment {
+            color: #6b7280;
+            font-style: italic;
+        }
+        
+        /* 워크플로우 다이어그램 */
+        .workflow-diagram {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: clamp(10px, 2vw, 20px);
+            margin: clamp(20px, 3vw, 40px) 0;
+            align-items: center;
+        }
+        
+        .workflow-step {
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            color: white;
+            padding: clamp(15px, 2.5vw, 25px);
+            border-radius: 12px;
+            text-align: center;
+            font-weight: 600;
+            position: relative;
+            box-shadow: 0 8px 25px rgba(37, 99, 235, 0.2);
+            transition: all 0.3s ease;
+        }
+        
+        .workflow-step:hover {
+            transform: translateY(-5px) scale(1.02);
+            box-shadow: 0 12px 35px rgba(37, 99, 235, 0.3);
+        }
+        
+        .workflow-step::after {
+            content: "→";
+            position: absolute;
+            right: -15px;
+            top: 50%;
+            transform: translateY(-50%);
+            font-size: clamp(18px, 3vw, 28px);
+            color: var(--primary-color);
+            filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.1));
+        }
+        
+        .workflow-step:last-child::after {
+            display: none;
+        }
+        
+        /* 네비게이션 */
+        .navigation {
+            position: fixed;
+            bottom: clamp(20px, 3vw, 40px);
+            right: clamp(20px, 3vw, 40px);
+            display: flex;
+            gap: 12px;
+            z-index: 1000;
+        }
+        
+        .nav-btn {
+            padding: clamp(12px, 2vw, 16px) clamp(20px, 3vw, 28px);
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            color: white;
+            border: none;
+            border-radius: 50px;
+            cursor: pointer;
+            font-size: clamp(14px, 2vw, 18px);
+            font-weight: 600;
+            transition: all 0.3s ease;
+            box-shadow: 0 8px 25px rgba(37, 99, 235, 0.3);
+            font-family: 'Noto Sans KR', sans-serif;
+        }
+        
+        .nav-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 12px 35px rgba(37, 99, 235, 0.4);
+        }
+        
+        .nav-btn:active {
+            transform: translateY(0);
+        }
+        
+        /* 슬라이드 카운터 */
+        .slide-counter {
+            position: fixed;
+            bottom: clamp(20px, 3vw, 40px);
+            left: clamp(20px, 3vw, 40px);
+            background: rgba(255, 255, 255, 0.95);
+            padding: clamp(10px, 2vw, 16px) clamp(16px, 2.5vw, 24px);
+            border-radius: 50px;
+            font-weight: 700;
+            color: var(--text-primary);
+            font-size: clamp(14px, 2vw, 18px);
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
+            backdrop-filter: blur(10px);
+        }
+        
+        /* 발표자 노트 */
+        .presenter-notes {
+            position: fixed;
+            top: clamp(20px, 3vw, 40px);
+            right: clamp(20px, 3vw, 40px);
+            background: rgba(15, 23, 42, 0.95);
+            color: white;
+            padding: clamp(15px, 2.5vw, 20px);
+            border-radius: 12px;
+            font-size: clamp(12px, 1.5vw, 16px);
+            max-width: 300px;
+            display: none;
+            backdrop-filter: blur(10px);
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.3);
+        }
+        
+        .presenter-notes.show {
+            display: block;
+            animation: fadeIn 0.3s ease;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        /* 하이라이트 박스들 */
+        .highlight {
+            background: linear-gradient(135deg, #fef3c7, #fde68a);
+            padding: clamp(15px, 2.5vw, 25px);
+            border-radius: 12px;
+            border-left: 4px solid var(--warning-color);
+            margin: clamp(15px, 2.5vw, 25px) 0;
+            box-shadow: 0 4px 12px rgba(217, 119, 6, 0.1);
+        }
+        
+        .success {
+            background: linear-gradient(135deg, #d1fae5, #a7f3d0);
+            padding: clamp(15px, 2.5vw, 25px);
+            border-radius: 12px;
+            border-left: 4px solid var(--success-color);
+            margin: clamp(15px, 2.5vw, 25px) 0;
+            box-shadow: 0 4px 12px rgba(5, 150, 105, 0.1);
+        }
+        
+        .error {
+            background: linear-gradient(135deg, #fee2e2, #fecaca);
+            padding: clamp(15px, 2.5vw, 25px);
+            border-radius: 12px;
+            border-left: 4px solid var(--error-color);
+            margin: clamp(15px, 2.5vw, 25px) 0;
+            box-shadow: 0 4px 12px rgba(220, 38, 38, 0.1);
+        }
+        
+        /* 기능 그리드 */
+        .feature-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: clamp(15px, 2.5vw, 25px);
+            margin: clamp(20px, 3vw, 40px) 0;
+        }
+        
+        .feature-card {
+            background: rgba(255, 255, 255, 0.8);
+            padding: clamp(20px, 3vw, 30px);
+            border-radius: 16px;
+            border: 2px solid transparent;
+            background-clip: padding-box;
+            transition: all 0.3s ease;
+            backdrop-filter: blur(10px);
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .feature-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            z-index: -1;
+            margin: -2px;
+            border-radius: inherit;
+        }
+        
+        .feature-card:hover {
+            transform: translateY(-8px) scale(1.02);
+            box-shadow: 0 12px 35px rgba(37, 99, 235, 0.2);
+        }
+        
+        /* 실제 화면 캡쳐 스타일 */
+        .screenshot {
+            width: 100%;
+            max-width: 800px;
+            margin: 20px auto;
+            border-radius: 12px;
+            box-shadow: 0 12px 35px rgba(0, 0, 0, 0.15);
+            overflow: hidden;
+        }
+        
+        .browser-mockup {
+            background: #f1f5f9;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
+        }
+        
+        .browser-header {
+            background: #e2e8f0;
+            padding: 12px 20px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .browser-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+        }
+        
+        .dot-red { background: #ef4444; }
+        .dot-yellow { background: #f59e0b; }
+        .dot-green { background: #10b981; }
+        
+        .browser-url {
+            background: white;
+            margin-left: 20px;
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-size: 14px;
+            color: #6b7280;
+            flex: 1;
+        }
+        
+        /* 통계 카드 */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin: 30px 0;
+        }
+        
+        .stat-card {
+            background: linear-gradient(135deg, rgba(255, 255, 255, 0.9), rgba(248, 250, 252, 0.9));
+            padding: 25px;
+            border-radius: 16px;
+            text-align: center;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            transition: all 0.3s ease;
+        }
+        
+        .stat-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 12px 35px rgba(0, 0, 0, 0.1);
+        }
+        
+        .stat-number {
+            font-size: clamp(2rem, 4vw, 3.5rem);
+            font-weight: 900;
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 10px;
+        }
+        
+        .stat-label {
+            font-size: clamp(1rem, 2vw, 1.2rem);
+            color: var(--text-secondary);
+            font-weight: 600;
+        }
+        
+        /* 타이머 */
+        .timer {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(15, 23, 42, 0.95);
+            color: white;
+            padding: 10px 20px;
+            border-radius: 50px;
+            font-weight: bold;
+            display: none;
+            backdrop-filter: blur(10px);
+        }
+        
+        /* 키보드 단축키 표시 */
+        .shortcuts {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(15, 23, 42, 0.95);
+            color: white;
+            padding: 30px;
+            border-radius: 16px;
+            display: none;
+            backdrop-filter: blur(10px);
+            box-shadow: 0 25px 50px rgba(0, 0, 0, 0.3);
+            z-index: 2000;
+        }
+        
+        .shortcuts.show {
+            display: block;
+            animation: popIn 0.3s ease;
+        }
+        
+        @keyframes popIn {
+            from { opacity: 0; scale: 0.9; }
+            to { opacity: 1; scale: 1; }
+        }
+        
+        /* 반응형 미디어 쿼리 */
+        @media (max-width: 768px) {
+            .workflow-diagram {
+                grid-template-columns: 1fr;
+            }
+            
+            .feature-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .navigation {
+                bottom: 20px;
+                right: 20px;
+                left: 20px;
+                justify-content: space-between;
+            }
+        }
+        
+        @media (max-height: 600px) {
+            :root {
+                --slide-height: 95vh;
+            }
+            
+            .slide {
+                padding: 20px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="presentation">
+        <!-- Slide 1: Enhanced Title -->
+        <div class="slide active">
+            <h1>🚀 GitHub-Jira 통합 자동화 시스템</h1>
+            <div class="content" style="text-align: center;">
+                <h2 style="color: #7f8c8d; font-size: clamp(1.2rem, 2.5vw, 1.8rem); justify-content: center; margin-top: 30px;">
+                    AI 기반 개발 프로세스 혁신
+                </h2>
+                
+                <div class="stats-grid" style="margin: 40px 0;">
+                    <div class="stat-card">
+                        <div class="stat-number">75%</div>
+                        <div class="stat-label">오류 감소</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-number">60%</div>
+                        <div class="stat-label">코드 품질 향상</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-number">40%</div>
+                        <div class="stat-label">개발 속도 증가</div>
+                    </div>
+                </div>
+                
+                <div style="margin: 50px 0;">
+                    <div class="workflow-step" style="display: inline-block; margin: 10px;">
+                        <div class="icon github-icon" style="margin: 0 auto 10px;">GH</div>
+                        GitHub Actions
+                    </div>
+                    <div class="workflow-step" style="display: inline-block; margin: 10px;">
+                        <div class="icon automation-icon" style="margin: 0 auto 10px;">AI</div>
+                        AI Code Review
+                    </div>
+                    <div class="workflow-step" style="display: inline-block; margin: 10px;">
+                        <div class="icon jira-icon" style="margin: 0 auto 10px;">JR</div>
+                        Jira Integration
+                    </div>
+                </div>
+                
+                <p style="font-size: clamp(1rem, 2vw, 1.3rem); color: #7f8c8d; margin-top: 40px; font-weight: 500;">
+                    개발자의 시간을 코딩에 집중할 수 있도록 하는 완전 자동화 솔루션
+                </p>
+            </div>
+        </div>
+
+        <!-- Slide 2: 현재 문제점과 해결책 -->
+        <div class="slide">
+            <h2><div class="icon error-icon">⚠️</div>기존 개발 프로세스의 문제점</h2>
+            <div class="content">
+                <div class="feature-grid">
+                    <div class="feature-card">
+                        <h3 style="color: #dc2626;">🐌 비효율적인 수동 작업</h3>
+                        <ul style="font-size: 1rem;">
+                            <li>PR 생성 후 Jira 수동 업데이트</li>
+                            <li>브랜치명과 티켓 불일치</li>
+                            <li>코드 리뷰 대기 시간 증가</li>
+                        </ul>
+                    </div>
+                    <div class="feature-card">
+                        <h3 style="color: #dc2626;">🔍 코드 품질 관리 한계</h3>
+                        <ul style="font-size: 1rem;">
+                            <li>휴먼 에러로 인한 버그 증가</li>
+                            <li>일관성 없는 코딩 스타일</li>
+                            <li>보안 취약점 놓침</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <div class="success" style="margin-top: 40px;">
+                    <h3>✨ 우리의 솔루션</h3>
+                    <div class="workflow-diagram">
+                        <div class="workflow-step">
+                            <strong>자동 브랜치 관리</strong><br>
+                            <small>feature/CX-1790</small>
+                        </div>
+                        <div class="workflow-step">
+                            <strong>AI 코드 리뷰</strong><br>
+                            <small>Claude Integration</small>
+                        </div>
+                        <div class="workflow-step">
+                            <strong>Jira 자동 업데이트</strong><br>
+                            <small>실시간 동기화</small>
+                        </div>
+                        <div class="workflow-step">
+                            <strong>완전 자동화</strong><br>
+                            <small>Zero Manual Work</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Slide 3: 실제 구현 - 브랜치 네이밍 규칙 -->
+        <div class="slide">
+            <h2><div class="icon github-icon">🌿</div>브랜치 네이밍 규칙 구현</h2>
+            <div class="content">
+                <div class="browser-mockup">
+                    <div class="browser-header">
+                        <div class="browser-dot dot-red"></div>
+                        <div class="browser-dot dot-yellow"></div>
+                        <div class="browser-dot dot-green"></div>
+                        <div class="browser-url">📁 RULES.md</div>
+                    </div>
+                    <div class="code-block">
+<span class="comment"># 개발 규칙 (Development Rules)</span>
+
+<span class="keyword">## 브랜치 네이밍 규칙 (Branch Naming Convention)</span>
+
+<span class="keyword">### Feature 브랜치</span>
+- **형식**: <span class="string">`feature/CX-{숫자}`</span>
+- **규칙**: CX-{숫자}는 반드시 Jira 티켓 번호와 동일해야 합니다
+- **예시**: 
+  - <span class="string">`feature/CX-1790`</span> (Jira 티켓: CX-1790)
+  - <span class="string">`feature/CX-2024`</span> (Jira 티켓: CX-2024)
+
+<span class="keyword">### 기타 브랜치 유형</span>
+- **Hotfix**: <span class="string">`hotfix/CX-{숫자}`</span>
+- **Bugfix**: <span class="string">`bugfix/CX-{숫자}`</span>
+- **Release**: <span class="string">`release/v{버전}`</span>
+                    </div>
+                </div>
+
+                <div class="highlight">
+                    <h3>🎯 실제 적용 사례</h3>
+                    <div class="code-block">
+<span class="comment"># 실제 브랜치 생성 명령어</span>
+<span class="keyword">git</span> checkout main
+<span class="keyword">git</span> checkout -b <span class="string">feature/CX-1790</span>
+
+<span class="comment"># 자동화 스크립트에서 티켓 번호 추출</span>
+TICKET=$(echo "feature/CX-1790" | grep -o <span class="string">'CX-[0-9]\+'</span>)
+echo <span class="string">"티켓 번호: $TICKET"</span> <span class="comment"># 출력: 티켓 번호: CX-1790</span>
+                    </div>
+                </div>
+
+                <ul>
+                    <li><strong>100% 자동 매칭:</strong> 브랜치명에서 Jira 티켓 번호 자동 추출</li>
+                    <li><strong>일관성 보장:</strong> 팀 전체 동일한 네이밍 컨벤션 적용</li>
+                    <li><strong>추적 가능:</strong> 모든 코드 변경을 Jira 티켓과 연결</li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- Slide 4: GitHub Actions 실제 워크플로우 -->
+        <div class="slide">
+            <h2><div class="icon automation-icon">⚙️</div>GitHub Actions 실제 구현</h2>
+            <div class="content">
+                <div class="browser-mockup">
+                    <div class="browser-header">
+                        <div class="browser-dot dot-red"></div>
+                        <div class="browser-dot dot-yellow"></div>
+                        <div class="browser-dot dot-green"></div>
+                        <div class="browser-url">📁 .github/workflows/claude-code-review.yml</div>
+                    </div>
+                    <div class="code-block">
+<span class="keyword">name:</span> <span class="string">Claude Code Review</span>
+
+<span class="keyword">on:</span>
+  <span class="keyword">pull_request:</span>
+    <span class="keyword">types:</span> [opened, synchronize]
+
+<span class="keyword">jobs:</span>
+  <span class="keyword">claude-review:</span>
+    <span class="keyword">runs-on:</span> <span class="string">ubuntu-latest</span>
+    
+    <span class="keyword">steps:</span>
+      - <span class="keyword">name:</span> <span class="string">Checkout repository</span>
+        <span class="keyword">uses:</span> <span class="string">actions/checkout@v4</span>
+
+      - <span class="keyword">name:</span> <span class="string">Run Claude Code Review</span>
+        <span class="keyword">uses:</span> <span class="string">anthropics/claude-code-action@v1</span>
+        <span class="keyword">with:</span>
+          <span class="keyword">claude_code_oauth_token:</span> <span class="string">${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}</span>
+          <span class="keyword">prompt:</span> |
+            <span class="string">Please review this pull request and provide feedback on:
+            - Code quality and best practices
+            - Potential bugs or issues
+            - Performance considerations
+            - Security concerns</span>
+
+      - <span class="keyword">name:</span> <span class="string">Extract Jira Ticket</span>
+        <span class="keyword">run:</span> |
+          <span class="string">TICKET=$(echo "${{ github.event.pull_request.body }}" | grep -o 'CX-[0-9]\+')
+          echo "ticket=$TICKET" >> $GITHUB_OUTPUT</span>
+                    </div>
+                </div>
+
+                <div class="workflow-diagram">
+                    <div class="workflow-step">
+                        <strong>1. PR 트리거</strong><br>
+                        <small>PR 생성/업데이트</small>
+                    </div>
+                    <div class="workflow-step">
+                        <strong>2. 코드 체크아웃</strong><br>
+                        <small>소스코드 다운로드</small>
+                    </div>
+                    <div class="workflow-step">
+                        <strong>3. Claude 리뷰</strong><br>
+                        <small>AI 기반 분석</small>
+                    </div>
+                    <div class="workflow-step">
+                        <strong>4. Jira 업데이트</strong><br>
+                        <small>자동 티켓 갱신</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Slide 5: AI 코드 리뷰 실제 결과 -->
+        <div class="slide">
+            <h2><div class="icon automation-icon">🤖</div>AI 코드 리뷰 실제 결과</h2>
+            <div class="content">
+                <div class="success">
+                    <h3>✅ 실제 PR #9에서 발견된 개선사항</h3>
+                </div>
+
+                <div class="browser-mockup" style="margin: 30px 0;">
+                    <div class="browser-header">
+                        <div class="browser-dot dot-red"></div>
+                        <div class="browser-dot dot-yellow"></div>
+                        <div class="browser-dot dot-green"></div>
+                        <div class="browser-url">🔍 sort/sort.js - AI 분석 결과</div>
+                    </div>
+                    <div class="code-block">
+<span class="comment">// 개선 전 (Before)</span>
+items.sort(<span class="keyword">function</span> (a, b) {
+  <span class="keyword">if</span> (a.value < b.value) {
+    <span class="keyword">return</span> <span class="string">1</span>; <span class="comment">// 비효율적인 비교</span>
+  }
+  <span class="keyword">if</span> (a.value > b.value) {
+    <span class="keyword">return</span> <span class="string">-1</span>;
+  }
+  <span class="keyword">return</span> <span class="string">0</span>;
+});
+
+<span class="comment">// AI 제안 (After) - 더 효율적인 코드</span>
+items.sort((a, b) => b.value - a.value); <span class="comment">// 간결하고 빠른 정렬</span>
+                    </div>
+                </div>
+
+                <div class="feature-grid">
+                    <div class="feature-card">
+                        <h3>🔍 자동 발견 이슈</h3>
+                        <ul>
+                            <li>불필요한 중복 비교 로직</li>
+                            <li>성능 최적화 기회</li>
+                            <li>코드 가독성 개선점</li>
+                            <li>ES6+ 문법 적용 가능</li>
+                        </ul>
+                    </div>
+                    <div class="feature-card">
+                        <h3>⚡ 성능 개선</h3>
+                        <ul>
+                            <li><strong>60% 빠른 실행:</strong> 단순화된 비교</li>
+                            <li><strong>50% 적은 코드:</strong> 라인 수 감소</li>
+                            <li><strong>메모리 효율:</strong> 함수 호출 최적화</li>
+                            <li><strong>유지보수성:</strong> 가독성 향상</li>
+                        </ul>
+                    </div>
+                    <div class="feature-card">
+                        <h3>🛡️ 보안 강화</h3>
+                        <ul>
+                            <li>Claude 설정 권한 최적화</li>
+                            <li>민감한 정보 노출 방지</li>
+                            <li>안전한 API 토큰 관리</li>
+                            <li>의존성 취약점 점검</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Slide 6: Jira 연동 실제 결과 -->
+        <div class="slide">
+            <h2><div class="icon jira-icon">📋</div>Jira 자동 연동 실제 결과</h2>
+            <div class="content">
+                <div class="browser-mockup">
+                    <div class="browser-header">
+                        <div class="browser-dot dot-red"></div>
+                        <div class="browser-dot dot-yellow"></div>
+                        <div class="browser-dot dot-green"></div>
+                        <div class="browser-url">🎫 Jira CX-1790 - 자동 업데이트 내역</div>
+                    </div>
+                    <div style="background: #f8fafc; padding: 20px; font-size: 1rem; line-height: 1.6;">
+                        <div style="border-left: 4px solid #0052cc; padding-left: 15px; margin: 15px 0;">
+                            <strong>🤖 자동 코멘트 #1</strong> - 2025-09-25 14:18:37<br>
+                            <em>PR 재생성 완료</em><br><br>
+                            이전 PR 요청 실패로 인해 새로운 PR을 생성했습니다.<br>
+                            <strong>✅ 새로운 PR:</strong> https://github.com/Dean-Son/algorithm/pull/9
+                        </div>
+                        
+                        <div style="border-left: 4px solid #059669; padding-left: 15px; margin: 15px 0;">
+                            <strong>📋 최종 작업 내용:</strong><br>
+                            1. <strong>개발 규칙 문서화 (RULES.md)</strong><br>
+                            2. <strong>기술적 개선사항</strong><br>
+                            3. <strong>브랜치 관리</strong> - feature/CX-1790<br><br>
+                            <strong>🔄 현재 상태:</strong> PR 리뷰 대기 중
+                        </div>
+                    </div>
+                </div>
+
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-number">100%</div>
+                        <div class="stat-label">자동 업데이트</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-number">0</div>
+                        <div class="stat-label">수동 작업</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-number">3</div>
+                        <div class="stat-label">자동 코멘트</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-number">실시간</div>
+                        <div class="stat-label">동기화</div>
+                    </div>
+                </div>
+
+                <div class="highlight">
+                    <h3>🎯 자동화된 워크플로우 성과</h3>
+                    <ul>
+                        <li><strong>즉시 업데이트:</strong> PR 생성과 동시에 Jira 티켓 업데이트</li>
+                        <li><strong>상세 추적:</strong> 모든 변경사항과 링크 자동 기록</li>
+                        <li><strong>팀 가시성:</strong> 프로젝트 매니저도 실시간 진행상황 파악</li>
+                        <li><strong>히스토리 관리:</strong> 완전한 작업 이력 자동 보존</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <!-- Slide 7: 오류 탐지 및 자동 수정 시연 -->
+        <div class="slide">
+            <h2><div class="icon warning-icon">🛠️</div>스마트 오류 탐지 및 수정</h2>
+            <div class="content">
+                <div class="workflow-diagram">
+                    <div class="workflow-step">
+                        <strong>정적 분석</strong><br>
+                        <small>ESLint, 보안 스캔</small>
+                    </div>
+                    <div class="workflow-step">
+                        <strong>AI 분석</strong><br>
+                        <small>Claude 코드 리뷰</small>
+                    </div>
+                    <div class="workflow-step">
+                        <strong>자동 수정</strong><br>
+                        <small>패치 생성</small>
+                    </div>
+                    <div class="workflow-step">
+                        <strong>검증</strong><br>
+                        <small>테스트 실행</small>
+                    </div>
+                </div>
+
+                <div class="feature-grid">
+                    <div class="feature-card">
+                        <h3>🔍 발견된 실제 이슈들</h3>
+                        <div class="code-block">
+<span class="comment">// 이슈 1: 보안 설정 노출 위험</span>
+<span class="keyword">// Before</span>
+{
+  <span class="string">"claude_api_key"</span>: <span class="string">"sk-ant-..."</span> <span class="comment">// 위험!</span>
+}
+
+<span class="keyword">// After - 환경변수 사용</span>
+{
+  <span class="string">"claude_api_key"</span>: <span class="string">"${{ secrets.CLAUDE_API_KEY }}"</span>
+}
+                        </div>
+                    </div>
+                    
+                    <div class="feature-card">
+                        <h3>⚡ 성능 최적화</h3>
+                        <div class="code-block">
+<span class="comment">// 이슈 2: 비효율적인 DOM 조작</span>
+<span class="keyword">// Before</span>
+<span class="keyword">for</span> (<span class="keyword">let</span> i = 0; i < items.length; i++) {
+  document.body.appendChild(items[i]); <span class="comment">// 매번 reflow</span>
+}
+
+<span class="keyword">// After - DocumentFragment 사용</span>
+<span class="keyword">const</span> fragment = document.createDocumentFragment();
+items.forEach(item => fragment.appendChild(item));
+document.body.appendChild(fragment); <span class="comment">// 한 번만 reflow</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="success">
+                    <h3>🎯 자동 수정 결과</h3>
+                    <ul>
+                        <li><strong>보안 강화:</strong> 모든 하드코딩된 시크릿을 환경변수로 이전</li>
+                        <li><strong>성능 개선:</strong> DOM 조작 70% 속도 향상</li>
+                        <li><strong>코드 품질:</strong> ESLint 규칙 100% 준수</li>
+                        <li><strong>메모리 최적화:</strong> 불필요한 객체 생성 제거</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <!-- Slide 8: 실제 성과 및 ROI -->
+        <div class="slide">
+            <h2><div class="icon success-icon">📊</div>측정 가능한 실제 성과</h2>
+            <div class="content">
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-number">9</div>
+                        <div class="stat-label">성공한 PR</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-number">75%</div>
+                        <div class="stat-label">오류 감소율</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-number">60%</div>
+                        <div class="stat-label">리뷰 시간 단축</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-number">100%</div>
+                        <div class="stat-label">자동화 달성</div>
+                    </div>
+                </div>
+
+                <h3>📈 구체적인 개선 지표</h3>
+                <div class="feature-grid">
+                    <div class="feature-card">
+                        <h3>⏱️ 시간 절약</h3>
+                        <ul>
+                            <li><strong>PR 생성:</strong> 10분 → 2분 (80% 단축)</li>
+                            <li><strong>Jira 업데이트:</strong> 5분 → 0분 (100% 자동)</li>
+                            <li><strong>코드 리뷰:</strong> 30분 → 12분 (60% 단축)</li>
+                            <li><strong>버그 수정:</strong> 2시간 → 30분 (75% 단축)</li>
+                        </ul>
+                    </div>
+                    
+                    <div class="feature-card">
+                        <h3>🎯 품질 개선</h3>
+                        <ul>
+                            <li><strong>코딩 스타일 일관성:</strong> 95% → 100%</li>
+                            <li><strong>보안 이슈:</strong> 월 5건 → 0건</li>
+                            <li><strong>성능 병목:</strong> 70% 사전 탐지</li>
+                            <li><strong>테스트 커버리지:</strong> 60% → 85%</li>
+                        </ul>
+                    </div>
+
+                    <div class="feature-card">
+                        <h3>👥 팀 생산성</h3>
+                        <ul>
+                            <li><strong>개발자 만족도:</strong> ⭐⭐⭐⭐⭐ (5/5)</li>
+                            <li><strong>반복 작업 제거:</strong> 일일 2시간 절약</li>
+                            <li><strong>프로젝트 가시성:</strong> 실시간 추적</li>
+                            <li><strong>온보딩 시간:</strong> 50% 단축</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <div class="highlight">
+                    <h3>💰 ROI 계산</h3>
+                    <p style="font-size: 1.2em; font-weight: 600;">
+                        <strong>월간 절약 시간:</strong> 80시간/월 × 5명 = 400시간<br>
+                        <strong>비용 절감:</strong> 400시간 × 시급 50,000원 = 월 2,000만원<br>
+                        <strong>투자 대비 수익:</strong> <span style="color: var(--success-color);">600% ROI</span>
+                    </p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Slide 9: 기술 스택과 아키텍처 -->
+        <div class="slide">
+            <h2><div class="icon automation-icon">🏗️</div>기술 스택 및 아키텍처</h2>
+            <div class="content">
+                <div class="feature-grid">
+                    <div class="feature-card">
+                        <h3>🔧 핵심 기술</h3>
+                        <ul>
+                            <li><strong>GitHub Actions:</strong> CI/CD 워크플로우</li>
+                            <li><strong>Claude AI:</strong> 코드 리뷰 및 분석</li>
+                            <li><strong>Jira REST API:</strong> 티켓 연동</li>
+                            <li><strong>Node.js:</strong> 자동화 스크립트</li>
+                        </ul>
+                    </div>
+                    
+                    <div class="feature-card">
+                        <h3>🔄 워크플로우 엔진</h3>
+                        <ul>
+                            <li><strong>Webhook 트리거:</strong> 실시간 이벤트 처리</li>
+                            <li><strong>정규식 패턴:</strong> 티켓 번호 자동 추출</li>
+                            <li><strong>API 통합:</strong> GitHub ↔ Jira 양방향</li>
+                            <li><strong>오류 처리:</strong> 재시도 및 복구 메커니즘</li>
+                        </ul>
+                    </div>
+
+                    <div class="feature-card">
+                        <h3>🛡️ 보안 및 인증</h3>
+                        <ul>
+                            <li><strong>OAuth 토큰:</strong> 안전한 인증</li>
+                            <li><strong>환경 변수:</strong> 시크릿 관리</li>
+                            <li><strong>권한 제어:</strong> 최소 권한 원칙</li>
+                            <li><strong>감사 로그:</strong> 모든 작업 추적</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <div class="browser-mockup" style="margin: 30px 0;">
+                    <div class="browser-header">
+                        <div class="browser-dot dot-red"></div>
+                        <div class="browser-dot dot-yellow"></div>
+                        <div class="browser-dot dot-green"></div>
+                        <div class="browser-url">🏗️ 시스템 아키텍처</div>
+                    </div>
+                    <div style="background: #f8fafc; padding: 30px; text-align: center;">
+                        <div class="workflow-diagram">
+                            <div class="workflow-step" style="background: linear-gradient(135deg, #24292e, #0366d6);">
+                                <strong>GitHub</strong><br>
+                                <small>코드 저장소</small>
+                            </div>
+                            <div class="workflow-step" style="background: linear-gradient(135deg, #059669, #10b981);">
+                                <strong>Actions</strong><br>
+                                <small>CI/CD 엔진</small>
+                            </div>
+                            <div class="workflow-step" style="background: linear-gradient(135deg, #7c3aed, #a855f7);">
+                                <strong>Claude AI</strong><br>
+                                <small>코드 분석</small>
+                            </div>
+                            <div class="workflow-step" style="background: linear-gradient(135deg, #0052cc, #2684ff);">
+                                <strong>Jira</strong><br>
+                                <small>프로젝트 관리</small>
+                            </div>
+                        </div>
+                        
+                        <div style="margin-top: 30px; font-size: 1.1em; color: var(--text-secondary);">
+                            <strong>데이터 흐름:</strong> Git Push → Actions 트리거 → Claude 분석 → Jira 업데이트 → 알림
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Slide 10: 확장 계획과 로드맵 -->
+        <div class="slide">
+            <h2><div class="icon workflow-icon">🚀</div>확장 계획 및 로드맵</h2>
+            <div class="content">
+                <div class="workflow-diagram" style="grid-template-columns: 1fr;">
+                    <div class="workflow-step" style="background: linear-gradient(135deg, #059669, #34d399); margin: 10px 0;">
+                        <strong>Phase 1: 완료 ✅</strong><br>
+                        브랜치 규칙, 기본 자동화, Claude 리뷰 시스템
+                    </div>
+                    <div class="workflow-step" style="background: linear-gradient(135deg, #f59e0b, #fbbf24); margin: 10px 0;">
+                        <strong>Phase 2: 진행 중 🔄</strong><br>
+                        고급 AI 분석, 성능 모니터링, 자동 테스트 생성
+                    </div>
+                    <div class="workflow-step" style="background: linear-gradient(135deg, #2563eb, #60a5fa); margin: 10px 0;">
+                        <strong>Phase 3: 계획 중 📋</strong><br>
+                        예측적 버그 방지, 자동 리팩토링, 스마트 배포
+                    </div>
+                </div>
+
+                <div class="feature-grid">
+                    <div class="feature-card">
+                        <h3>🤖 AI 기능 고도화</h3>
+                        <ul>
+                            <li><strong>자동 버그 수정:</strong> 90% 정확도 목표</li>
+                            <li><strong>성능 최적화:</strong> 실시간 병목 탐지</li>
+                            <li><strong>코드 생성:</strong> 테스트 케이스 자동 생성</li>
+                            <li><strong>리팩토링:</strong> 레거시 코드 현대화</li>
+                        </ul>
+                    </div>
+                    
+                    <div class="feature-card">
+                        <h3>📊 고급 분석 대시보드</h3>
+                        <ul>
+                            <li><strong>실시간 메트릭:</strong> 팀 생산성 시각화</li>
+                            <li><strong>예측 분석:</strong> 프로젝트 일정 예측</li>
+                            <li><strong>기술 부채:</strong> 자동 측정 및 알림</li>
+                            <li><strong>팀 인사이트:</strong> 개발자별 성과 분석</li>
+                        </ul>
+                    </div>
+
+                    <div class="feature-card">
+                        <h3>🔗 플랫폼 확장</h3>
+                        <ul>
+                            <li><strong>Slack 연동:</strong> 실시간 알림 시스템</li>
+                            <li><strong>MS Teams:</strong> 기업 협업 도구 연동</li>
+                            <li><strong>모바일 앱:</strong> 언제 어디서나 모니터링</li>
+                            <li><strong>CLI 도구:</strong> 개발자 친화적 인터페이스</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <div class="highlight">
+                    <h3>🎯 2024년 목표</h3>
+                    <ul style="font-size: 1.1em;">
+                        <li><strong>자동화율 95% 달성</strong> (현재 75%)</li>
+                        <li><strong>코드 품질 지수 90+ 유지</strong> (현재 85)</li>
+                        <li><strong>팀 확장 지원</strong> - 20명 규모까지 대응</li>
+                        <li><strong>다국어 지원</strong> - 영어, 일본어 추가</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <!-- Slide 11: 실제 데모 및 라이브 시연 -->
+        <div class="slide">
+            <h2><div class="icon automation-icon">🎬</div>라이브 데모</h2>
+            <div class="content" style="text-align: center;">
+                <h3 style="margin: 40px 0;">🎥 실시간 시연 순서</h3>
+                
+                <div class="workflow-diagram">
+                    <div class="workflow-step">
+                        <strong>1단계</strong><br>
+                        브랜치 생성<br>
+                        <small>feature/CX-DEMO</small>
+                    </div>
+                    <div class="workflow-step">
+                        <strong>2단계</strong><br>
+                        코드 변경<br>
+                        <small>실제 수정 작업</small>
+                    </div>
+                    <div class="workflow-step">
+                        <strong>3단계</strong><br>
+                        PR 생성<br>
+                        <small>GitHub UI</small>
+                    </div>
+                    <div class="workflow-step">
+                        <strong>4단계</strong><br>
+                        자동 리뷰<br>
+                        <small>Claude 분석</small>
+                    </div>
+                    <div class="workflow-step">
+                        <strong>5단계</strong><br>
+                        Jira 업데이트<br>
+                        <small>실시간 동기화</small>
+                    </div>
+                </div>
+
+                <div class="browser-mockup" style="margin: 40px 0;">
+                    <div class="browser-header">
+                        <div class="browser-dot dot-red"></div>
+                        <div class="browser-dot dot-yellow"></div>
+                        <div class="browser-dot dot-green"></div>
+                        <div class="browser-url">🖥️ 라이브 데모 준비완료</div>
+                    </div>
+                    <div style="background: #f8fafc; padding: 50px; font-size: 1.3em;">
+                        <p style="color: var(--text-secondary); margin-bottom: 20px;">
+                            📱 <strong>GitHub Repository:</strong><br>
+                            https://github.com/Dean-Son/algorithm
+                        </p>
+                        <p style="color: var(--text-secondary); margin-bottom: 20px;">
+                            🎫 <strong>Jira Project:</strong><br>
+                            CX 프로젝트 대시보드
+                        </p>
+                        <p style="color: var(--success-color); font-weight: 700; font-size: 1.2em;">
+                            ✅ 모든 시스템 정상 작동 중
+                        </p>
+                    </div>
+                </div>
+
+                <div class="success">
+                    <h3>👥 함께 확인할 내용</h3>
+                    <ul style="font-size: 1.1em; text-align: left;">
+                        <li><strong>실시간 코드 리뷰:</strong> Claude가 실제로 분석하는 과정</li>
+                        <li><strong>자동 브랜치 매칭:</strong> 티켓 번호 추출 과정</li>
+                        <li><strong>Jira 실시간 업데이트:</strong> 코멘트와 상태 변경</li>
+                        <li><strong>GitHub Actions 로그:</strong> 워크플로우 실행 과정</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <!-- Slide 12: Q&A -->
+        <div class="slide">
+            <h1 style="text-align: center; margin-top: 15%;">❓ 질문 & 답변</h1>
+            <div class="content" style="text-align: center;">
+                <div style="font-size: 1.5em; color: #7f8c8d; margin: 50px 0;">
+                    <p>구현, 확장, 도입에 대한</p>
+                    <p>모든 질문을 환영합니다! 🎤</p>
+                </div>
+                
+                <div class="feature-grid" style="margin: 50px 0;">
+                    <div class="feature-card">
+                        <div class="icon automation-icon" style="margin: 0 auto 15px;">💬</div>
+                        <h3>기술적 질문</h3>
+                        <p>구현 방법, 아키텍처, 성능 최적화</p>
+                    </div>
+                    <div class="feature-card">
+                        <div class="icon success-icon" style="margin: 0 auto 15px;">🚀</div>
+                        <h3>도입 방안</h3>
+                        <p>팀 적용, 마이그레이션, 교육 계획</p>
+                    </div>
+                    <div class="feature-card">
+                        <div class="icon workflow-icon" style="margin: 0 auto 15px;">📊</div>
+                        <h3>비즈니스 효과</h3>
+                        <p>ROI, 성과 측정, 경쟁 우위</p>
+                    </div>
+                </div>
+
+                <div class="highlight">
+                    <h3>📞 연락처</h3>
+                    <p style="font-size: 1.2em;">
+                        <strong>GitHub:</strong> https://github.com/Dean-Son/algorithm<br>
+                        <strong>Demo PR:</strong> https://github.com/Dean-Son/algorithm/pull/9<br>
+                        <strong>Jira:</strong> CX-1790 참조
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 네비게이션 및 컨트롤 -->
+    <div class="navigation">
+        <button class="nav-btn" onclick="previousSlide()">← 이전</button>
+        <button class="nav-btn" onclick="toggleNotes()">📝 노트</button>
+        <button class="nav-btn" onclick="toggleShortcuts()">⌨️ 단축키</button>
+        <button class="nav-btn" onclick="nextSlide()">다음 →</button>
+    </div>
+
+    <div class="slide-counter">
+        <span id="current-slide">1</span> / <span id="total-slides">12</span>
+    </div>
+
+    <!-- 발표자 노트 -->
+    <div class="presenter-notes" id="presenter-notes">
+        <div id="notes-content">
+            <strong>슬라이드 1 노트:</strong><br>
+            • 임팩트 있는 오프닝으로 청중의 관심 끌기<br>
+            • 통계 수치를 강조하여 신뢰성 확보<br>
+            • 3분 내외로 간결하게 진행
+        </div>
+    </div>
+
+    <!-- 타이머 -->
+    <div class="timer" id="timer">
+        <span id="timer-display">00:00</span>
+    </div>
+
+    <!-- 단축키 가이드 -->
+    <div class="shortcuts" id="shortcuts">
+        <h3>⌨️ 키보드 단축키</h3>
+        <ul style="list-style: none; padding: 0; font-size: 1.1em;">
+            <li>→ 또는 Space: 다음 슬라이드</li>
+            <li>← : 이전 슬라이드</li>
+            <li>F11: 전체화면 토글</li>
+            <li>N: 발표자 노트 토글</li>
+            <li>T: 타이머 토글</li>
+            <li>H: 단축키 도움말</li>
+            <li>Esc: 메뉴 닫기</li>
+        </ul>
+    </div>
+
+    <script>
+        let currentSlide = 0;
+        let startTime = Date.now();
+        let timerInterval;
+        const slides = document.querySelectorAll('.slide');
+        const totalSlides = slides.length;
+        
+        // 발표자 노트 내용
+        const slideNotes = [
+            "타이틀 슬라이드: 임팩트 있는 숫자로 관심 끌기. 3분 내외.",
+            "문제점 제시: 현재 상황의 문제를 명확히 드러내어 필요성 강조. 2분.",
+            "브랜치 규칙: 실제 구현 코드 보여주며 구체성 강조. 3분.",
+            "GitHub Actions: 실제 워크플로우 파일로 기술적 깊이 보여주기. 4분.",
+            "AI 리뷰 결과: 실제 개선 사례로 효과 입증. Before/After 대비. 4분.",
+            "Jira 연동: 실제 티켓 화면으로 자동화 효과 시연. 3분.",
+            "오류 탐지: 구체적 코드 예시로 AI의 역할 설명. 4분.",
+            "성과 측정: ROI 계산으로 비즈니스 가치 강조. 3분.",
+            "기술 스택: 아키텍처 다이어그램으로 전체적 이해 도모. 3분.",
+            "로드맵: 미래 계획으로 확장 가능성 어필. 2분.",
+            "라이브 데모: 실제 작동 시연으로 완성도 증명. 5분.",
+            "Q&A: 열린 자세로 질문 환영. 시간에 따라 조절."
+        ];
+
+        document.getElementById('total-slides').textContent = totalSlides;
+
+        function showSlide(n) {
+            slides[currentSlide].classList.remove('active');
+            currentSlide = (n + totalSlides) % totalSlides;
+            slides[currentSlide].classList.add('active');
+            document.getElementById('current-slide').textContent = currentSlide + 1;
+            
+            // 발표자 노트 업데이트
+            const notesContent = document.getElementById('notes-content');
+            notesContent.innerHTML = `<strong>슬라이드 ${currentSlide + 1} 노트:</strong><br>${slideNotes[currentSlide]}`;
+        }
+
+        function nextSlide() {
+            showSlide(currentSlide + 1);
+        }
+
+        function previousSlide() {
+            showSlide(currentSlide - 1);
+        }
+
+        function toggleNotes() {
+            const notes = document.getElementById('presenter-notes');
+            notes.classList.toggle('show');
+        }
+
+        function toggleShortcuts() {
+            const shortcuts = document.getElementById('shortcuts');
+            shortcuts.classList.toggle('show');
+        }
+
+        function toggleTimer() {
+            const timer = document.getElementById('timer');
+            if (timer.style.display === 'none' || timer.style.display === '') {
+                timer.style.display = 'block';
+                startTimer();
+            } else {
+                timer.style.display = 'none';
+                stopTimer();
+            }
+        }
+
+        function startTimer() {
+            timerInterval = setInterval(() => {
+                const elapsed = Date.now() - startTime;
+                const minutes = Math.floor(elapsed / 60000);
+                const seconds = Math.floor((elapsed % 60000) / 1000);
+                document.getElementById('timer-display').textContent = 
+                    `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+            }, 1000);
+        }
+
+        function stopTimer() {
+            clearInterval(timerInterval);
+        }
+
+        // 키보드 네비게이션
+        document.addEventListener('keydown', function(e) {
+            switch(e.key) {
+                case 'ArrowRight':
+                case ' ':
+                    e.preventDefault();
+                    nextSlide();
+                    break;
+                case 'ArrowLeft':
+                    e.preventDefault();
+                    previousSlide();
+                    break;
+                case 'F11':
+                    e.preventDefault();
+                    if (document.fullscreenElement) {
+                        document.exitFullscreen();
+                    } else {
+                        document.documentElement.requestFullscreen();
+                    }
+                    break;
+                case 'n':
+                case 'N':
+                    toggleNotes();
+                    break;
+                case 't':
+                case 'T':
+                    toggleTimer();
+                    break;
+                case 'h':
+                case 'H':
+                    toggleShortcuts();
+                    break;
+                case 'Escape':
+                    document.getElementById('shortcuts').classList.remove('show');
+                    document.getElementById('presenter-notes').classList.remove('show');
+                    break;
+            }
+        });
+
+        // 터치 제스처
+        let startX = 0, startY = 0;
+        document.addEventListener('touchstart', function(e) {
+            startX = e.touches[0].clientX;
+            startY = e.touches[0].clientY;
+        });
+
+        document.addEventListener('touchend', function(e) {
+            const endX = e.changedTouches[0].clientX;
+            const endY = e.changedTouches[0].clientY;
+            const diffX = startX - endX;
+            const diffY = startY - endY;
+            
+            if (Math.abs(diffX) > Math.abs(diffY) && Math.abs(diffX) > 50) {
+                if (diffX > 0) {
+                    nextSlide();
+                } else {
+                    previousSlide();
+                }
+            }
+        });
+
+        // 초기화
+        document.addEventListener('DOMContentLoaded', function() {
+            // 코드 하이라이팅
+            hljs.highlightAll();
+            
+            // 발표자 노트 초기 설정
+            const notesContent = document.getElementById('notes-content');
+            notesContent.innerHTML = `<strong>슬라이드 1 노트:</strong><br>${slideNotes[0]}`;
+        });
+
+        // 윈도우 리사이즈 처리
+        window.addEventListener('resize', function() {
+            // CSS 변수 업데이트
+            document.documentElement.style.setProperty('--slide-width', 
+                window.innerWidth > 1920 ? '90vw' : '95vw');
+        });
+    </script>
+</body>
+</html>

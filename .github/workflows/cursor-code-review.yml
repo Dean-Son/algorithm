@@ -1,0 +1,73 @@
+name: Cursor code review
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+
+jobs:
+  code-review:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+      issues: read
+      id-token: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Cursor CLI 설치
+        run: |
+          curl https://cursor.com/install -fsS | bash
+          echo "$HOME/.cursor/bin" >> $GITHUB_PATH
+
+      - name: 코드 리뷰 수행
+        env:
+          CURSOR_API_KEY: ${{ secrets.CURSOR_API_KEY }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cursor-agent --force --model "$MODEL" --output-format=text --print "너는 GitHub Actions 러너에서 자동 코드 리뷰를 수행하고 있어. gh CLI는 GH_TOKEN으로 인증되어 있어. 풀 리퀘스트에 댓글을 남길 수 있어.
+
+          Context:
+          - Repo: ${{ github.repository }}
+          - PR Number: ${{ github.event.pull_request.number }}
+          - PR Head SHA: ${{ github.event.pull_request.head.sha }}
+          - PR Base SHA: ${{ github.event.pull_request.base.sha }}
+
+          Objectives:
+          1) 기존 리뷰 댓글을 재확인하고 해결되었으면 resolved로 답장하기
+          2) 현재 PR diff를 검토하고 명확하며 심각도가 높은 이슈만 표시하기
+          3) 변경된 줄에만 매우 짧은 인라인 댓글(1~2문장)을 남기고 끝에 간단한 요약 추가하기
+
+          Procedure:
+          - 기존 댓글 가져오기: gh pr view --json comments
+          - diff 가져오기: gh pr diff
+          - 이전에 보고된 이슈가 인접한 변경으로 해결된 것으로 보이면 이렇게 답장: ✅ 최근 변경으로 이 이슈가 해결된 것으로 보입니다
+          - 중복 방지: 동일하거나 유사한 피드백이 같은 줄 또는 인근 줄에 이미 있으면 건너뛰기
+
+          Commenting rules:
+          - 인라인 댓글은 최대 10개; 가장 치명적인 이슈에 우선순위 두기
+          - 댓글당 하나의 이슈; 정확히 변경된 줄에 달기
+          - 자연스럽고 구체적이며 실행 가능하게; 자동화 여부나 높은 확신 같은 표현은 언급하지 않기
+          - 이모지 사용: 🚨 Critical 🔒 Security ⚡ Performance ⚠️ Logic ✅ Resolved ✨ Improvement
+
+          Submission:
+          - 인라인 댓글과 간결한 요약을 포함한 단일 리뷰 제출
+          - 다음만 사용: gh pr review --comment
+          - 다음은 사용하지 않기: gh pr review --approve 또는 --request-changes"
+
+      - name: Check blocking review results
+        if: env.BLOCKING_REVIEW == 'true'
+        run: |
+          echo "Checking for critical issues..."
+          echo "CRITICAL_ISSUES_FOUND: ${CRITICAL_ISSUES_FOUND:-unset}"
+
+          if [ "${CRITICAL_ISSUES_FOUND:-false}" = "true" ]; then
+            echo "❌ Critical issues found and blocking review is enabled. Failing the workflow."
+            exit 1
+          else
+            echo "✅ No blocking issues found."
+          fi
