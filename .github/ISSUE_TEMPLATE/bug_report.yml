@@ -1,0 +1,150 @@
+name: 🐛 Bug Report
+description: Create a report to help us improve the Claude-GitHub-Jira integration
+title: "[BUG] "
+labels: ["bug", "needs-triage"]
+assignees: []
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to fill out this bug report! Please provide as much detail as possible.
+
+  - type: checkboxes
+    id: terms
+    attributes:
+      label: Pre-submission Checklist
+      description: Please confirm you have completed these steps
+      options:
+        - label: I have searched existing issues to ensure this bug hasn't been reported
+          required: true
+        - label: I have followed the troubleshooting guide in our documentation
+          required: true
+        - label: I am using the latest version of the integration
+          required: true
+
+  - type: dropdown
+    id: component
+    attributes:
+      label: Component
+      description: Which part of the system is affected?
+      options:
+        - Claude Code Integration
+        - GitHub Actions Workflow
+        - Jira MCP Server
+        - Setup Scripts
+        - Documentation
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: bug-description
+    attributes:
+      label: Bug Description
+      description: A clear and concise description of what the bug is
+      placeholder: Describe what happened and what you expected to happen
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction-steps
+    attributes:
+      label: Steps to Reproduce
+      description: Steps to reproduce the behavior
+      placeholder: |
+        1. Go to...
+        2. Click on...
+        3. Run command...
+        4. See error
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected-behavior
+    attributes:
+      label: Expected Behavior
+      description: What should have happened?
+      placeholder: A clear description of what you expected to happen
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual-behavior
+    attributes:
+      label: Actual Behavior
+      description: What actually happened?
+      placeholder: A clear description of what actually happened
+    validations:
+      required: true
+
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment Information
+      description: Please provide details about your environment
+      placeholder: |
+        - OS: [e.g. macOS 14.0, Windows 11, Ubuntu 22.04]
+        - Python Version: [e.g. 3.9.7]
+        - Node.js Version: [e.g. 18.17.0]
+        - Git Version: [e.g. 2.34.1]
+        - Claude Code Version: [e.g. 1.2.3]
+        - Browser: [if relevant, e.g. Chrome 118.0]
+    validations:
+      required: true
+
+  - type: textarea
+    id: error-logs
+    attributes:
+      label: Error Messages / Logs
+      description: Please provide any error messages or relevant log output
+      render: text
+      placeholder: |
+        Paste error messages, stack traces, or log output here.
+        GitHub Actions logs, terminal output, browser console errors, etc.
+
+  - type: textarea
+    id: additional-context
+    attributes:
+      label: Additional Context
+      description: Add any other context about the problem here
+      placeholder: |
+        - Screenshots (if applicable)
+        - Configuration files (remove sensitive data)
+        - Network/firewall issues
+        - Recent changes made to the system
+        - Links to related issues
+
+  - type: dropdown
+    id: severity
+    attributes:
+      label: Severity Level
+      description: How severe is this bug?
+      options:
+        - "🔥 Critical - System completely broken"
+        - "🚨 High - Major functionality affected"
+        - "⚠️ Medium - Some functionality affected"
+        - "📝 Low - Minor issue or cosmetic problem"
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: workaround
+    attributes:
+      label: Workaround Available
+      options:
+        - label: I have found a temporary workaround for this issue
+
+  - type: textarea
+    id: workaround-description
+    attributes:
+      label: Workaround Description
+      description: If you found a workaround, please describe it
+      placeholder: Describe your temporary solution or workaround
+
+  - type: checkboxes
+    id: contribute
+    attributes:
+      label: Contribution
+      options:
+        - label: I would be willing to help fix this issue

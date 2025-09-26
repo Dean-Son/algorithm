@@ -1,0 +1,180 @@
+name: ✨ Feature Request
+description: Suggest a new feature or enhancement for the Claude-GitHub-Jira integration
+title: "[FEATURE] "
+labels: ["enhancement", "needs-discussion"]
+assignees: []
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to suggest a new feature! Your ideas help make our integration better.
+
+  - type: checkboxes
+    id: pre-check
+    attributes:
+      label: Pre-submission Checklist
+      description: Please confirm you have completed these steps
+      options:
+        - label: I have searched existing issues to ensure this feature hasn't been requested
+          required: true
+        - label: I have reviewed the current documentation and features
+          required: true
+        - label: This is a feature request, not a bug report
+          required: true
+
+  - type: dropdown
+    id: feature-category
+    attributes:
+      label: Feature Category
+      description: What type of feature are you requesting?
+      options:
+        - "🤖 AI/Claude Integration Enhancement"
+        - "🔄 GitHub Actions Workflow"
+        - "🎫 Jira Integration Features"
+        - "⚙️ Setup & Configuration"
+        - "📊 Monitoring & Analytics"
+        - "🔒 Security & Authentication"
+        - "📚 Documentation & Guides"
+        - "🛠️ Developer Tools"
+        - "🔗 Third-party Integrations"
+        - "Other"
+    validations:
+      required: true
+
+  - type: textarea
+    id: feature-summary
+    attributes:
+      label: Feature Summary
+      description: A clear and concise description of the feature you'd like to see
+      placeholder: "I would like to see..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: problem-statement
+    attributes:
+      label: Problem Statement
+      description: What problem does this feature solve? What pain point does it address?
+      placeholder: |
+        Describe the current limitation or problem that this feature would solve:
+        - What workflow is currently difficult or impossible?
+        - What manual steps could be automated?
+        - What inefficiency would this address?
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposed-solution
+    attributes:
+      label: Proposed Solution
+      description: Describe your ideal solution in detail
+      placeholder: |
+        Describe how you envision this feature working:
+        - What would the user experience look like?
+        - How would it integrate with existing features?
+        - What would be the key functionality?
+    validations:
+      required: true
+
+  - type: textarea
+    id: user-stories
+    attributes:
+      label: User Stories
+      description: Provide specific user stories or use cases
+      placeholder: |
+        Please provide 2-3 user stories in the format:
+        "As a [user type], I want [functionality] so that [benefit]"
+        
+        Example:
+        - As a developer, I want automatic code quality metrics in PR comments so that I can quickly assess code health
+        - As a team lead, I want dashboard views of automation metrics so that I can track team productivity
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternative Solutions
+      description: Have you considered any alternative solutions or workarounds?
+      placeholder: |
+        - Other tools or approaches you've tried
+        - Manual workarounds currently in use
+        - Why those alternatives are not sufficient
+
+  - type: dropdown
+    id: priority
+    attributes:
+      label: Priority Level
+      description: How important is this feature to your workflow?
+      options:
+        - "🔥 Critical - Blocking our team's productivity"
+        - "🚀 High - Would significantly improve our workflow"
+        - "📈 Medium - Nice to have, would provide value"
+        - "💡 Low - Interesting idea, not urgent"
+    validations:
+      required: true
+
+  - type: textarea
+    id: technical-considerations
+    attributes:
+      label: Technical Considerations
+      description: Any technical aspects, constraints, or requirements to consider?
+      placeholder: |
+        - API limitations or requirements
+        - Performance considerations
+        - Security implications
+        - Backward compatibility needs
+        - Integration complexity
+
+  - type: textarea
+    id: success-criteria
+    attributes:
+      label: Success Criteria
+      description: How would you measure the success of this feature?
+      placeholder: |
+        What would make this feature successful? Consider:
+        - User adoption metrics
+        - Time savings achieved
+        - Error reduction
+        - User satisfaction improvements
+
+  - type: checkboxes
+    id: implementation
+    attributes:
+      label: Implementation Willingness
+      options:
+        - label: I would be willing to contribute to the implementation of this feature
+        - label: I can provide testing and feedback during development
+        - label: I can help with documentation for this feature
+
+  - type: textarea
+    id: additional-context
+    attributes:
+      label: Additional Context
+      description: Any other context, screenshots, mockups, or examples
+      placeholder: |
+        - Links to similar features in other tools
+        - Screenshots or mockups of desired UI
+        - Examples from other projects
+        - Research or articles supporting the feature
+
+  - type: dropdown
+    id: team-size
+    attributes:
+      label: Team Impact
+      description: How many people would benefit from this feature?
+      options:
+        - "🏢 Large team (20+ people)"
+        - "👥 Medium team (5-20 people)"
+        - "👨‍👩‍👧‍👦 Small team (2-5 people)"
+        - "👤 Individual use"
+        - "🌍 Broader community"
+
+  - type: textarea
+    id: timeline
+    attributes:
+      label: Timeline Expectations
+      description: When would you ideally like to see this feature?
+      placeholder: |
+        - Is this needed for a specific project or deadline?
+        - Are there any time-sensitive aspects?
+        - Would you prefer a quick MVP or a complete solution?
