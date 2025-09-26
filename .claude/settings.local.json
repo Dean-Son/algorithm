@@ -4,7 +4,9 @@
       "mcp__taskmaster-ai__initialize_project",
       "Bash(git checkout:*)",
       "Bash(git add:*)",
+
       "Bash(chmod:*)",
+
       "Bash(git commit:*)"
     ],
     "deny": [],

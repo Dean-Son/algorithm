@@ -1,4 +1,4 @@
-var items = [
+const items = [
   { name: "Edward", value: 21 },
   { name: "Sharpe", value: 37 },
   { name: "And", value: 45 },
@@ -7,16 +7,7 @@ var items = [
   { name: "Zeros", value: 37 },
 ];
 
-// value 기준으로 정렬
-items.sort(function (a, b) {
-  if (a.value > b.value) {
-    return 1;
-  }
-  if (a.value < b.value) {
-    return -1;
-  }
-  // a must be equal to b
-  return 0;
-});
+// value 기준으로 정렬 (간단한 화살표 함수 사용)
+items.sort((a, b) => a.value - b.value);
 
 console.log(items);
