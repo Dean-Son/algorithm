@@ -1,0 +1,563 @@
+name: Performance Monitoring & Metrics Collection
+
+on:
+  workflow_run:
+    workflows: ["Claude Code Review"]
+    types:
+      - completed
+  schedule:
+    # Run daily at 9 AM KST (midnight UTC)
+    - cron: '0 0 * * *'
+  workflow_dispatch:
+    inputs:
+      time_range:
+        description: 'Time range for metrics collection'
+        required: false
+        default: '7d'
+        type: choice
+        options:
+          - '1d'
+          - '7d'
+          - '30d'
+      detailed_analysis:
+        description: 'Generate detailed performance analysis'
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+  actions: read
+  pull-requests: write
+  issues: write
+
+env:
+  METRICS_RETENTION_DAYS: 90
+  ALERT_THRESHOLD_SUCCESS_RATE: 85
+  ALERT_THRESHOLD_AVG_DURATION: 300
+
+jobs:
+  collect-metrics:
+    name: Collect Performance Metrics
+    runs-on: ubuntu-latest
+    if: github.repository_owner == github.actor || github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    
+    outputs:
+      success-rate: ${{ steps.calculate.outputs.success-rate }}
+      avg-duration: ${{ steps.calculate.outputs.avg-duration }}
+      total-runs: ${{ steps.calculate.outputs.total-runs }}
+      cost-estimate: ${{ steps.calculate.outputs.cost-estimate }}
+      
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Python for data processing
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install requests pandas matplotlib seaborn python-dateutil
+
+      - name: Collect workflow metrics
+        id: collect
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TIME_RANGE: ${{ github.event.inputs.time_range || '7d' }}
+        run: |
+          python << 'EOF'
+          import os
+          import json
+          import requests
+          from datetime import datetime, timedelta
+          import pandas as pd
+          
+          # Configuration
+          token = os.environ['GITHUB_TOKEN']
+          repo = os.environ['GITHUB_REPOSITORY']
+          time_range = os.environ.get('TIME_RANGE', '7d')
+          
+          # Calculate date range
+          days = int(time_range.rstrip('d'))
+          since_date = (datetime.now() - timedelta(days=days)).isoformat()
+          
+          headers = {
+              'Authorization': f'token {token}',
+              'Accept': 'application/vnd.github.v3+json'
+          }
+          
+          # Collect workflow runs
+          url = f'https://api.github.com/repos/{repo}/actions/runs'
+          params = {
+              'created': f'>={since_date}',
+              'per_page': 100
+          }
+          
+          all_runs = []
+          page = 1
+          
+          while page <= 10:  # Limit to prevent excessive API calls
+              params['page'] = page
+              response = requests.get(url, headers=headers, params=params)
+              
+              if response.status_code != 200:
+                  print(f"Error fetching data: {response.status_code}")
+                  break
+                  
+              data = response.json()
+              runs = data.get('workflow_runs', [])
+              
+              if not runs:
+                  break
+                  
+              all_runs.extend(runs)
+              page += 1
+          
+          # Process metrics
+          claude_runs = []
+          total_api_calls = 0
+          
+          for run in all_runs:
+              if 'claude' in run['name'].lower() or 'code-review' in run['name'].lower():
+                  # Calculate duration
+                  if run['created_at'] and run['updated_at']:
+                      created = datetime.fromisoformat(run['created_at'].replace('Z', '+00:00'))
+                      updated = datetime.fromisoformat(run['updated_at'].replace('Z', '+00:00'))
+                      duration = (updated - created).total_seconds()
+                  else:
+                      duration = 0
+                  
+                  claude_runs.append({
+                      'id': run['id'],
+                      'status': run['conclusion'] or run['status'],
+                      'duration': duration,
+                      'created_at': run['created_at'],
+                      'trigger': run['event'],
+                      'branch': run['head_branch']
+                  })
+                  
+                  # Estimate API calls (rough estimate)
+                  if run['conclusion'] == 'success':
+                      total_api_calls += 2  # Claude + Jira API calls
+          
+          # Calculate metrics
+          df = pd.DataFrame(claude_runs)
+          
+          if len(df) > 0:
+              success_rate = len(df[df['status'] == 'success']) / len(df) * 100
+              avg_duration = df['duration'].mean()
+              total_runs = len(df)
+              failed_runs = len(df[df['status'] == 'failure'])
+          else:
+              success_rate = 100
+              avg_duration = 0
+              total_runs = 0
+              failed_runs = 0
+          
+          # Cost estimation (rough calculation)
+          # Based on GitHub Actions pricing + Claude API costs
+          compute_cost = total_runs * 0.008  # ~$0.008 per minute average
+          claude_api_cost = total_api_calls * 0.015  # ~$0.015 per API call
+          total_cost = compute_cost + claude_api_cost
+          
+          # Save metrics
+          metrics = {
+              'timestamp': datetime.now().isoformat(),
+              'time_range': time_range,
+              'success_rate': round(success_rate, 2),
+              'avg_duration': round(avg_duration, 2),
+              'total_runs': total_runs,
+              'failed_runs': failed_runs,
+              'total_api_calls': total_api_calls,
+              'estimated_cost': round(total_cost, 4),
+              'detailed_runs': claude_runs[:20]  # Keep last 20 for analysis
+          }
+          
+          with open('metrics.json', 'w') as f:
+              json.dump(metrics, f, indent=2)
+          
+          # Set outputs
+          print(f"::set-output name=success-rate::{success_rate}")
+          print(f"::set-output name=avg-duration::{avg_duration}")
+          print(f"::set-output name=total-runs::{total_runs}")
+          print(f"::set-output name=cost-estimate::{total_cost}")
+          
+          print(f"📊 Metrics collected:")
+          print(f"   Success Rate: {success_rate:.2f}%")
+          print(f"   Average Duration: {avg_duration:.2f} seconds")
+          print(f"   Total Runs: {total_runs}")
+          print(f"   Failed Runs: {failed_runs}")
+          print(f"   Estimated Cost: ${total_cost:.4f}")
+          EOF
+
+      - name: Calculate performance scores
+        id: calculate
+        run: |
+          python << 'EOF'
+          import json
+          import os
+          
+          with open('metrics.json', 'r') as f:
+              metrics = json.load(f)
+          
+          success_rate = metrics['success_rate']
+          avg_duration = metrics['avg_duration']
+          
+          # Performance scoring (0-100)
+          # Success rate contributes 60%, Speed contributes 40%
+          success_score = success_rate
+          
+          # Speed score (inverse relationship with duration)
+          # Target: under 120 seconds = 100 points
+          target_duration = 120
+          if avg_duration <= target_duration:
+              speed_score = 100
+          else:
+              speed_score = max(0, 100 - ((avg_duration - target_duration) / target_duration * 100))
+          
+          overall_score = (success_score * 0.6) + (speed_score * 0.4)
+          
+          metrics['performance_scores'] = {
+              'success_score': round(success_score, 2),
+              'speed_score': round(speed_score, 2),
+              'overall_score': round(overall_score, 2)
+          }
+          
+          with open('metrics.json', 'w') as f:
+              json.dump(metrics, f, indent=2)
+          
+          print(f"Performance Score: {overall_score:.2f}/100")
+          print(f"  - Success Score: {success_score:.2f}/100")
+          print(f"  - Speed Score: {speed_score:.2f}/100")
+          EOF
+
+      - name: Generate performance report
+        run: |
+          python << 'EOF'
+          import json
+          from datetime import datetime
+          
+          with open('metrics.json', 'r') as f:
+              metrics = json.load(f)
+          
+          report = f"""# 🚀 Automation Performance Report
+          
+          **Period:** {metrics['time_range']} | **Generated:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S UTC')}
+          
+          ## 📊 Key Metrics
+          
+          | Metric | Value | Status |
+          |--------|-------|--------|
+          | **Success Rate** | {metrics['success_rate']:.1f}% | {'🟢 Good' if metrics['success_rate'] >= 90 else '🟡 Warning' if metrics['success_rate'] >= 80 else '🔴 Critical'} |
+          | **Average Duration** | {metrics['avg_duration']:.1f}s | {'🟢 Fast' if metrics['avg_duration'] <= 120 else '🟡 Moderate' if metrics['avg_duration'] <= 300 else '🔴 Slow'} |
+          | **Total Runs** | {metrics['total_runs']} | {'🟢 Active' if metrics['total_runs'] > 0 else '🔴 Inactive'} |
+          | **Failed Runs** | {metrics['failed_runs']} | {'🟢 None' if metrics['failed_runs'] == 0 else '🟡 Some' if metrics['failed_runs'] <= 2 else '🔴 Many'} |
+          | **Estimated Cost** | ${metrics['estimated_cost']:.4f} | {'🟢 Low' if metrics['estimated_cost'] <= 1.0 else '🟡 Medium' if metrics['estimated_cost'] <= 5.0 else '🔴 High'} |
+          | **API Calls** | {metrics['total_api_calls']} | ℹ️ Info |
+          
+          ## 🎯 Performance Score: {metrics['performance_scores']['overall_score']:.1f}/100
+          
+          - **Success Score:** {metrics['performance_scores']['success_score']:.1f}/100
+          - **Speed Score:** {metrics['performance_scores']['speed_score']:.1f}/100
+          
+          ## 📈 Analysis
+          
+          ### ✅ Strengths
+          """
+          
+          # Add strengths based on metrics
+          if metrics['success_rate'] >= 95:
+              report += "- Excellent reliability with 95%+ success rate\n"
+          if metrics['avg_duration'] <= 120:
+              report += "- Fast execution under 2 minutes average\n"
+          if metrics['failed_runs'] == 0:
+              report += "- Zero failures in the reporting period\n"
+          
+          report += "\n### ⚠️ Areas for Improvement\n"
+          
+          # Add improvement areas
+          if metrics['success_rate'] < 85:
+              report += "- Success rate below 85% - investigate failures\n"
+          if metrics['avg_duration'] > 300:
+              report += "- Average duration over 5 minutes - optimize workflow\n"
+          if metrics['failed_runs'] > 3:
+              report += "- Multiple failures detected - review error patterns\n"
+          
+          report += f"""
+          
+          ## 🔍 Recent Activity
+          
+          **Last {min(len(metrics['detailed_runs']), 10)} workflow runs:**
+          """
+          
+          for i, run in enumerate(metrics['detailed_runs'][:10]):
+              status_emoji = "🟢" if run['status'] == 'success' else "🔴" if run['status'] == 'failure' else "🟡"
+              report += f"\n{i+1}. {status_emoji} {run['status'].upper()} - {run['duration']:.1f}s - {run['trigger']} ({run['branch']})"
+          
+          report += f"""
+          
+          ## 🚨 Alerts & Recommendations
+          
+          """
+          
+          # Generate alerts
+          alerts = []
+          if metrics['success_rate'] < float(os.environ.get('ALERT_THRESHOLD_SUCCESS_RATE', 85)):
+              alerts.append(f"🔴 **LOW SUCCESS RATE**: {metrics['success_rate']:.1f}% is below threshold ({os.environ.get('ALERT_THRESHOLD_SUCCESS_RATE', 85)}%)")
+          
+          if metrics['avg_duration'] > float(os.environ.get('ALERT_THRESHOLD_AVG_DURATION', 300)):
+              alerts.append(f"🟡 **SLOW PERFORMANCE**: {metrics['avg_duration']:.1f}s average is above threshold ({os.environ.get('ALERT_THRESHOLD_AVG_DURATION', 300)}s)")
+          
+          if metrics['estimated_cost'] > 5.0:
+              alerts.append(f"💰 **HIGH COST**: ${metrics['estimated_cost']:.4f} estimated cost is high")
+          
+          if not alerts:
+              report += "✅ No alerts - all metrics within acceptable ranges\n"
+          else:
+              for alert in alerts:
+                  report += f"{alert}\n"
+          
+          report += """
+          
+          ---
+          
+          *Generated by Performance Monitoring Workflow*  
+          *For detailed logs, check the Actions tab*
+          """
+          
+          with open('performance-report.md', 'w') as f:
+              f.write(report)
+          
+          print("📄 Performance report generated")
+          EOF
+
+      - name: Upload metrics artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: performance-metrics-${{ github.run_number }}
+          path: |
+            metrics.json
+            performance-report.md
+          retention-days: 90
+
+  performance-alerts:
+    name: Performance Alerts
+    runs-on: ubuntu-latest
+    needs: collect-metrics
+    if: needs.collect-metrics.outputs.success-rate != '' && (needs.collect-metrics.outputs.success-rate < 85 || needs.collect-metrics.outputs.avg-duration > 300)
+    
+    steps:
+      - name: Create performance alert issue
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const successRate = parseFloat('${{ needs.collect-metrics.outputs.success-rate }}');
+            const avgDuration = parseFloat('${{ needs.collect-metrics.outputs.avg-duration }}');
+            const totalRuns = '${{ needs.collect-metrics.outputs.total-runs }}';
+            const costEstimate = '${{ needs.collect-metrics.outputs.cost-estimate }}';
+            
+            const alerts = [];
+            
+            if (successRate < 85) {
+              alerts.push(`🔴 **LOW SUCCESS RATE**: ${successRate.toFixed(1)}% (threshold: 85%)`);
+            }
+            
+            if (avgDuration > 300) {
+              alerts.push(`⏱️ **SLOW PERFORMANCE**: ${avgDuration.toFixed(1)}s average (threshold: 300s)`);
+            }
+            
+            const issueBody = `# ⚠️ Performance Alert
+            
+            **Triggered:** ${new Date().toISOString()}
+            **Time Range:** 7 days
+            
+            ## 🚨 Alerts
+            
+            ${alerts.join('\n')}
+            
+            ## 📊 Current Metrics
+            
+            - **Success Rate:** ${successRate.toFixed(1)}%
+            - **Average Duration:** ${avgDuration.toFixed(1)}s
+            - **Total Runs:** ${totalRuns}
+            - **Estimated Cost:** $${costEstimate}
+            
+            ## 🎯 Recommended Actions
+            
+            ${successRate < 85 ? '- [ ] **Investigate failed workflows** - Check logs for common failure patterns\n- [ ] **Review error handling** - Improve robustness of automation scripts\n- [ ] **Update documentation** - Ensure setup guides are current\n' : ''}
+            ${avgDuration > 300 ? '- [ ] **Optimize workflow performance** - Review slow steps and dependencies\n- [ ] **Consider caching strategies** - Cache dependencies and artifacts\n- [ ] **Review resource allocation** - Check if more resources are needed\n' : ''}
+            
+            ## 🔍 Investigation Steps
+            
+            1. **Check recent workflow runs** in the Actions tab
+            2. **Review error logs** for failed executions  
+            3. **Verify integrations** - Claude, GitHub, Jira connectivity
+            4. **Check system resources** and rate limits
+            5. **Update performance monitoring** if thresholds need adjustment
+            
+            ---
+            
+            *This issue was automatically created by the Performance Monitoring workflow*
+            *Close this issue once performance has been restored to acceptable levels*
+            `;
+            
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `⚠️ Performance Alert: ${alerts.length > 1 ? 'Multiple Issues' : alerts[0].includes('SUCCESS') ? 'Low Success Rate' : 'Slow Performance'} Detected`,
+              body: issueBody,
+              labels: ['performance', 'alert', 'automated']
+            });
+
+  generate-dashboard:
+    name: Generate Performance Dashboard
+    runs-on: ubuntu-latest
+    needs: collect-metrics
+    if: github.event.inputs.detailed_analysis == 'true' || github.event_name == 'schedule'
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Python with visualization libraries
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+
+      - name: Install visualization dependencies
+        run: |
+          pip install matplotlib seaborn pandas plotly requests python-dateutil
+
+      - name: Download metrics
+        uses: actions/download-artifact@v4
+        with:
+          name: performance-metrics-${{ github.run_number }}
+
+      - name: Generate performance dashboard
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          python << 'EOF'
+          import json
+          import matplotlib.pyplot as plt
+          import seaborn as sns
+          import pandas as pd
+          from datetime import datetime, timedelta
+          import os
+          
+          # Set style
+          plt.style.use('seaborn-v0_8')
+          sns.set_palette("husl")
+          
+          # Load metrics
+          with open('metrics.json', 'r') as f:
+              metrics = json.load(f)
+          
+          # Create dashboard
+          fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=(15, 10))
+          fig.suptitle('Claude-GitHub-Jira Automation Performance Dashboard', fontsize=16, fontweight='bold')
+          
+          # 1. Success Rate Gauge
+          success_rate = metrics['success_rate']
+          ax1.pie([success_rate, 100-success_rate], labels=['Success', 'Failure'], 
+                  colors=['#2ecc71', '#e74c3c'], startangle=90, counterclock=False)
+          ax1.set_title(f'Success Rate: {success_rate:.1f}%')
+          
+          # 2. Duration Histogram
+          if metrics['detailed_runs']:
+              durations = [run['duration'] for run in metrics['detailed_runs']]
+              ax2.hist(durations, bins=10, color='#3498db', alpha=0.7, edgecolor='black')
+              ax2.set_xlabel('Duration (seconds)')
+              ax2.set_ylabel('Number of Runs')
+              ax2.set_title(f'Duration Distribution (Avg: {metrics["avg_duration"]:.1f}s)')
+              ax2.axvline(metrics['avg_duration'], color='red', linestyle='--', label='Average')
+              ax2.legend()
+          
+          # 3. Performance Score
+          scores = metrics['performance_scores']
+          categories = ['Success', 'Speed', 'Overall']
+          values = [scores['success_score'], scores['speed_score'], scores['overall_score']]
+          colors = ['#2ecc71', '#f39c12', '#9b59b6']
+          
+          bars = ax3.bar(categories, values, color=colors, alpha=0.8, edgecolor='black')
+          ax3.set_ylim(0, 100)
+          ax3.set_ylabel('Score')
+          ax3.set_title('Performance Scores')
+          
+          # Add value labels on bars
+          for bar, value in zip(bars, values):
+              height = bar.get_height()
+              ax3.text(bar.get_x() + bar.get_width()/2., height + 1,
+                      f'{value:.1f}', ha='center', va='bottom')
+          
+          # 4. Cost and Activity Summary
+          cost_data = {
+              'Total Runs': metrics['total_runs'],
+              'API Calls': metrics['total_api_calls'], 
+              'Failed Runs': metrics['failed_runs']
+          }
+          
+          ax4.bar(cost_data.keys(), cost_data.values(), color=['#16a085', '#8e44ad', '#c0392b'], alpha=0.8)
+          ax4.set_title(f'Activity Summary (Cost: ${metrics["estimated_cost"]:.4f})')
+          ax4.set_ylabel('Count')
+          
+          # Add value labels
+          for i, (key, value) in enumerate(cost_data.items()):
+              ax4.text(i, value + max(cost_data.values()) * 0.01, str(value), 
+                      ha='center', va='bottom')
+          
+          plt.tight_layout()
+          plt.savefig('performance-dashboard.png', dpi=300, bbox_inches='tight')
+          plt.close()
+          
+          print("📊 Performance dashboard generated")
+          EOF
+
+      - name: Upload dashboard
+        uses: actions/upload-artifact@v4
+        with:
+          name: performance-dashboard-${{ github.run_number }}
+          path: performance-dashboard.png
+          retention-days: 30
+
+      - name: Comment dashboard on latest PR
+        if: github.event_name == 'workflow_dispatch'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            // Find latest PR
+            const prs = await github.rest.pulls.list({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              sort: 'updated',
+              direction: 'desc',
+              per_page: 1
+            });
+            
+            if (prs.data.length > 0) {
+              const pr = prs.data[0];
+              const artifactUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+              
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: pr.number,
+                body: `## 📊 Performance Dashboard Generated
+                
+                A detailed performance dashboard has been generated for the automation system.
+                
+                **Metrics Period:** ${{ github.event.inputs.time_range || '7d' }}
+                **Success Rate:** ${{ needs.collect-metrics.outputs.success-rate }}%
+                **Avg Duration:** ${{ needs.collect-metrics.outputs.avg-duration }}s
+                **Total Runs:** ${{ needs.collect-metrics.outputs.total-runs }}
+                
+                📈 [View Dashboard Artifact](${artifactUrl})
+                
+                *Dashboard automatically generated by Performance Monitoring workflow*`
+              });
+            }
