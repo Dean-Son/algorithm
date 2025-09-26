@@ -8,15 +8,6 @@ var items = [
 ];
 
 // value 기준으로 정렬
-items.sort(function (a, b) {
-  if (a.value > b.value) {
-    return 1;
-  }
-  if (a.value < b.value) {
-    return -1;
-  }
-  // a must be equal to b
-  return 0;
-});
+items.sort((a, b) => a.value - b.value);
 
 console.log(items);
