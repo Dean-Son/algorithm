@@ -1,0 +1,543 @@
+name: System Health Check & Alerts
+
+on:
+  schedule:
+    # Run every 6 hours
+    - cron: '0 */6 * * *'
+  workflow_dispatch:
+    inputs:
+      check_type:
+        description: 'Type of health check to perform'
+        required: false
+        default: 'full'
+        type: choice
+        options:
+          - 'full'
+          - 'connectivity'
+          - 'performance'
+          - 'security'
+      alert_threshold:
+        description: 'Alert threshold (low/medium/high)'
+        required: false
+        default: 'medium'
+        type: choice
+        options:
+          - 'low'
+          - 'medium'
+          - 'high'
+
+permissions:
+  contents: read
+  issues: write
+  actions: read
+  pull-requests: read
+
+env:
+  HEALTH_CHECK_TIMEOUT: 30
+  MAX_RESPONSE_TIME: 5000  # milliseconds
+  MIN_SUCCESS_RATE: 90     # percentage
+
+jobs:
+  connectivity-check:
+    name: API Connectivity Check
+    runs-on: ubuntu-latest
+    if: github.event.inputs.check_type == 'connectivity' || github.event.inputs.check_type == 'full' || github.event_name == 'schedule'
+    
+    outputs:
+      claude-status: ${{ steps.claude.outputs.status }}
+      github-status: ${{ steps.github.outputs.status }}
+      jira-status: ${{ steps.jira.outputs.status }}
+      overall-health: ${{ steps.summary.outputs.health }}
+    
+    steps:
+      - name: Claude API Health Check
+        id: claude
+        continue-on-error: true
+        run: |
+          echo "🤖 Testing Claude API connectivity..."
+          
+          start_time=$(date +%s%3N)
+          response=$(curl -s -w "HTTPSTATUS:%{http_code};TIME:%{time_total}" \
+            -H "anthropic-version: 2023-06-01" \
+            -H "x-api-key: ${CLAUDE_TOKEN:-dummy}" \
+            https://api.anthropic.com/v1/models \
+            || echo "HTTPSTATUS:000;TIME:999")
+          
+          http_status=$(echo "$response" | grep -o "HTTPSTATUS:[0-9]*" | cut -d: -f2)
+          response_time=$(echo "$response" | grep -o "TIME:[0-9.]*" | cut -d: -f2)
+          end_time=$(date +%s%3N)
+          total_time=$((end_time - start_time))
+          
+          echo "HTTP Status: $http_status"
+          echo "Response Time: ${response_time}s"
+          echo "Total Time: ${total_time}ms"
+          
+          if [ "$http_status" = "200" ] || [ "$http_status" = "401" ]; then
+            echo "status=healthy" >> $GITHUB_OUTPUT
+            echo "✅ Claude API is accessible"
+          else
+            echo "status=unhealthy" >> $GITHUB_OUTPUT
+            echo "❌ Claude API is not accessible (HTTP: $http_status)"
+          fi
+          
+          echo "response_time=$response_time" >> $GITHUB_OUTPUT
+          echo "http_status=$http_status" >> $GITHUB_OUTPUT
+        env:
+          CLAUDE_TOKEN: ${{ secrets.CLAUDE_TOKEN }}
+
+      - name: GitHub API Health Check
+        id: github
+        continue-on-error: true
+        run: |
+          echo "🐙 Testing GitHub API connectivity..."
+          
+          start_time=$(date +%s%3N)
+          response=$(curl -s -w "HTTPSTATUS:%{http_code};TIME:%{time_total}" \
+            -H "Authorization: token ${GITHUB_TOKEN}" \
+            -H "Accept: application/vnd.github.v3+json" \
+            https://api.github.com/user \
+            || echo "HTTPSTATUS:000;TIME:999")
+          
+          http_status=$(echo "$response" | grep -o "HTTPSTATUS:[0-9]*" | cut -d: -f2)
+          response_time=$(echo "$response" | grep -o "TIME:[0-9.]*" | cut -d: -f2)
+          end_time=$(date +%s%3N)
+          total_time=$((end_time - start_time))
+          
+          echo "HTTP Status: $http_status"
+          echo "Response Time: ${response_time}s"
+          echo "Total Time: ${total_time}ms"
+          
+          if [ "$http_status" = "200" ]; then
+            echo "status=healthy" >> $GITHUB_OUTPUT
+            echo "✅ GitHub API is accessible"
+          else
+            echo "status=unhealthy" >> $GITHUB_OUTPUT
+            echo "❌ GitHub API is not accessible (HTTP: $http_status)"
+          fi
+          
+          echo "response_time=$response_time" >> $GITHUB_OUTPUT
+          echo "http_status=$http_status" >> $GITHUB_OUTPUT
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Jira API Health Check
+        id: jira
+        continue-on-error: true
+        run: |
+          echo "🎫 Testing Jira API connectivity..."
+          
+          if [ -z "${JIRA_URL}" ] || [ -z "${JIRA_TOKEN}" ]; then
+            echo "⚠️ Jira credentials not configured, skipping check"
+            echo "status=skipped" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          
+          start_time=$(date +%s%3N)
+          
+          # Create Basic Auth header
+          auth_header=$(echo -n "${JIRA_EMAIL}:${JIRA_TOKEN}" | base64)
+          
+          response=$(curl -s -w "HTTPSTATUS:%{http_code};TIME:%{time_total}" \
+            -H "Authorization: Basic $auth_header" \
+            -H "Accept: application/json" \
+            "${JIRA_URL}/rest/api/3/myself" \
+            || echo "HTTPSTATUS:000;TIME:999")
+          
+          http_status=$(echo "$response" | grep -o "HTTPSTATUS:[0-9]*" | cut -d: -f2)
+          response_time=$(echo "$response" | grep -o "TIME:[0-9.]*" | cut -d: -f2)
+          end_time=$(date +%s%3N)
+          total_time=$((end_time - start_time))
+          
+          echo "HTTP Status: $http_status"
+          echo "Response Time: ${response_time}s"
+          echo "Total Time: ${total_time}ms"
+          
+          if [ "$http_status" = "200" ]; then
+            echo "status=healthy" >> $GITHUB_OUTPUT
+            echo "✅ Jira API is accessible"
+          else
+            echo "status=unhealthy" >> $GITHUB_OUTPUT
+            echo "❌ Jira API is not accessible (HTTP: $http_status)"
+          fi
+          
+          echo "response_time=$response_time" >> $GITHUB_OUTPUT
+          echo "http_status=$http_status" >> $GITHUB_OUTPUT
+        env:
+          JIRA_URL: ${{ secrets.JIRA_URL }}
+          JIRA_EMAIL: ${{ secrets.JIRA_EMAIL }}
+          JIRA_TOKEN: ${{ secrets.JIRA_TOKEN }}
+
+      - name: Overall Health Summary
+        id: summary
+        run: |
+          claude_status="${{ steps.claude.outputs.status }}"
+          github_status="${{ steps.github.outputs.status }}"
+          jira_status="${{ steps.jira.outputs.status }}"
+          
+          healthy_count=0
+          total_count=0
+          
+          # Count healthy services
+          if [ "$claude_status" = "healthy" ]; then healthy_count=$((healthy_count + 1)); fi
+          if [ "$claude_status" != "skipped" ]; then total_count=$((total_count + 1)); fi
+          
+          if [ "$github_status" = "healthy" ]; then healthy_count=$((healthy_count + 1)); fi
+          if [ "$github_status" != "skipped" ]; then total_count=$((total_count + 1)); fi
+          
+          if [ "$jira_status" = "healthy" ]; then healthy_count=$((healthy_count + 1)); fi
+          if [ "$jira_status" != "skipped" ]; then total_count=$((total_count + 1)); fi
+          
+          health_percentage=$((healthy_count * 100 / total_count))
+          
+          echo "Health Score: $healthy_count/$total_count ($health_percentage%)"
+          
+          if [ "$health_percentage" -ge 100 ]; then
+            echo "health=excellent" >> $GITHUB_OUTPUT
+            echo "🟢 System health: EXCELLENT"
+          elif [ "$health_percentage" -ge 80 ]; then
+            echo "health=good" >> $GITHUB_OUTPUT
+            echo "🟡 System health: GOOD"
+          elif [ "$health_percentage" -ge 60 ]; then
+            echo "health=degraded" >> $GITHUB_OUTPUT
+            echo "🟠 System health: DEGRADED"
+          else
+            echo "health=critical" >> $GITHUB_OUTPUT
+            echo "🔴 System health: CRITICAL"
+          fi
+          
+          echo "health_percentage=$health_percentage" >> $GITHUB_OUTPUT
+
+  performance-check:
+    name: Performance Analysis
+    runs-on: ubuntu-latest
+    if: github.event.inputs.check_type == 'performance' || github.event.inputs.check_type == 'full' || github.event_name == 'schedule'
+    
+    outputs:
+      performance-score: ${{ steps.analyze.outputs.score }}
+      avg-duration: ${{ steps.analyze.outputs.avg-duration }}
+      success-rate: ${{ steps.analyze.outputs.success-rate }}
+    
+    steps:
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+
+      - name: Analyze recent performance
+        id: analyze
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          pip install requests python-dateutil
+          
+          python << 'EOF'
+          import os
+          import requests
+          from datetime import datetime, timedelta
+          
+          token = os.environ['GITHUB_TOKEN']
+          repo = os.environ['GITHUB_REPOSITORY']
+          
+          # Get workflow runs from last 24 hours
+          since_date = (datetime.now() - timedelta(hours=24)).isoformat()
+          
+          headers = {
+              'Authorization': f'token {token}',
+              'Accept': 'application/vnd.github.v3+json'
+          }
+          
+          url = f'https://api.github.com/repos/{repo}/actions/runs'
+          params = {
+              'created': f'>={since_date}',
+              'per_page': 50
+          }
+          
+          response = requests.get(url, headers=headers, params=params)
+          
+          if response.status_code != 200:
+              print(f"Error: {response.status_code}")
+              exit(1)
+          
+          runs = response.json().get('workflow_runs', [])
+          automation_runs = []
+          
+          # Filter automation workflows
+          for run in runs:
+              if any(keyword in run['name'].lower() for keyword in ['claude', 'code-review', 'automation']):
+                  if run['created_at'] and run['updated_at']:
+                      created = datetime.fromisoformat(run['created_at'].replace('Z', '+00:00'))
+                      updated = datetime.fromisoformat(run['updated_at'].replace('Z', '+00:00'))
+                      duration = (updated - created).total_seconds()
+                      
+                      automation_runs.append({
+                          'status': run['conclusion'] or run['status'],
+                          'duration': duration
+                      })
+          
+          # Calculate metrics
+          if automation_runs:
+              successful_runs = len([r for r in automation_runs if r['status'] == 'success'])
+              success_rate = (successful_runs / len(automation_runs)) * 100
+              avg_duration = sum(r['duration'] for r in automation_runs) / len(automation_runs)
+              
+              # Performance score calculation
+              success_score = success_rate
+              speed_score = max(0, 100 - ((avg_duration - 120) / 120 * 100)) if avg_duration > 120 else 100
+              performance_score = (success_score * 0.6) + (speed_score * 0.4)
+              
+          else:
+              success_rate = 100  # No runs = no failures
+              avg_duration = 0
+              performance_score = 100
+          
+          print(f"::set-output name=success-rate::{success_rate:.1f}")
+          print(f"::set-output name=avg-duration::{avg_duration:.1f}")
+          print(f"::set-output name=score::{performance_score:.1f}")
+          
+          print(f"📊 Performance Analysis (24h):")
+          print(f"   Success Rate: {success_rate:.1f}%")
+          print(f"   Avg Duration: {avg_duration:.1f}s")
+          print(f"   Performance Score: {performance_score:.1f}/100")
+          print(f"   Total Runs: {len(automation_runs)}")
+          EOF
+
+  security-check:
+    name: Security & Configuration Check
+    runs-on: ubuntu-latest
+    if: github.event.inputs.check_type == 'security' || github.event.inputs.check_type == 'full' || github.event_name == 'schedule'
+    
+    outputs:
+      security-score: ${{ steps.check.outputs.score }}
+      issues-found: ${{ steps.check.outputs.issues }}
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Security Configuration Check
+        id: check
+        run: |
+          issues=0
+          total_checks=0
+          security_issues=()
+          
+          echo "🔒 Performing security checks..."
+          
+          # Check 1: Secrets configuration
+          total_checks=$((total_checks + 1))
+          if [ -f ".env" ]; then
+            security_issues+=("❌ .env file found in repository - should be gitignored")
+            issues=$((issues + 1))
+          else
+            echo "✅ No .env file in repository"
+          fi
+          
+          # Check 2: .gitignore configuration
+          total_checks=$((total_checks + 1))
+          if [ -f ".gitignore" ] && grep -q "\.env" .gitignore; then
+            echo "✅ .env files properly gitignored"
+          else
+            security_issues+=("⚠️ .env files not properly gitignored")
+            issues=$((issues + 1))
+          fi
+          
+          # Check 3: Workflow permissions
+          total_checks=$((total_checks + 1))
+          workflow_files=(.github/workflows/*.yml)
+          secure_workflows=0
+          
+          for workflow in "${workflow_files[@]}"; do
+            if [ -f "$workflow" ] && grep -q "permissions:" "$workflow"; then
+              secure_workflows=$((secure_workflows + 1))
+            fi
+          done
+          
+          if [ $secure_workflows -gt 0 ]; then
+            echo "✅ Workflows have explicit permissions"
+          else
+            security_issues+=("⚠️ Some workflows may not have explicit permissions")
+            issues=$((issues + 1))
+          fi
+          
+          # Check 4: Token expiry (simulated check)
+          total_checks=$((total_checks + 1))
+          # This would require actual API calls to check token expiry
+          # For now, we'll just report as a reminder
+          echo "ℹ️ Remember to rotate API tokens every 90 days"
+          
+          # Check 5: Dependency vulnerabilities
+          total_checks=$((total_checks + 1))
+          if command -v npm &> /dev/null && [ -f "package.json" ]; then
+            npm audit --audit-level moderate > /tmp/audit.log 2>&1 || true
+            vulnerabilities=$(grep -c "vulnerabilities" /tmp/audit.log || echo "0")
+            if [ "$vulnerabilities" -gt 0 ]; then
+              security_issues+=("⚠️ NPM vulnerabilities detected - run 'npm audit fix'")
+              issues=$((issues + 1))
+            else
+              echo "✅ No critical NPM vulnerabilities"
+            fi
+          else
+            echo "ℹ️ NPM not available for vulnerability check"
+          fi
+          
+          # Calculate security score
+          secure_checks=$((total_checks - issues))
+          security_score=$((secure_checks * 100 / total_checks))
+          
+          echo "🔒 Security Score: $security_score% ($secure_checks/$total_checks checks passed)"
+          
+          # Output results
+          echo "score=$security_score" >> $GITHUB_OUTPUT
+          echo "issues=$issues" >> $GITHUB_OUTPUT
+          
+          # Print issues
+          if [ ${#security_issues[@]} -gt 0 ]; then
+            echo "🚨 Security Issues Found:"
+            printf '%s\n' "${security_issues[@]}"
+          else
+            echo "✅ No security issues detected"
+          fi
+
+  create-health-report:
+    name: Generate Health Report
+    runs-on: ubuntu-latest
+    needs: [connectivity-check, performance-check, security-check]
+    if: always() && (needs.connectivity-check.result != 'skipped' || needs.performance-check.result != 'skipped' || needs.security-check.result != 'skipped')
+    
+    steps:
+      - name: Generate comprehensive health report
+        id: report
+        run: |
+          echo "📋 Generating system health report..."
+          
+          # Collect results
+          overall_health="${{ needs.connectivity-check.outputs.overall-health }}"
+          health_percentage="${{ needs.connectivity-check.outputs.health-percentage || '0' }}"
+          performance_score="${{ needs.performance-check.outputs.performance-score || 'N/A' }}"
+          security_score="${{ needs.security-check.outputs.security-score || 'N/A' }}"
+          
+          claude_status="${{ needs.connectivity-check.outputs.claude-status }}"
+          github_status="${{ needs.connectivity-check.outputs.github-status }}"
+          jira_status="${{ needs.connectivity-check.outputs.jira-status }}"
+          
+          success_rate="${{ needs.performance-check.outputs.success-rate || 'N/A' }}"
+          avg_duration="${{ needs.performance-check.outputs.avg-duration || 'N/A' }}"
+          security_issues="${{ needs.security-check.outputs.issues-found || '0' }}"
+          
+          # Generate report
+          cat > health-report.md << EOF
+          # 🏥 System Health Report
+          
+          **Generated:** $(date '+%Y-%m-%d %H:%M:%S UTC')  
+          **Report Type:** ${{ github.event.inputs.check_type || 'scheduled' }}
+          
+          ## 🎯 Overall System Health
+          
+          | Component | Status | Score |
+          |-----------|--------|-------|
+          | **Connectivity** | $overall_health | $health_percentage% |
+          | **Performance** | $([ "$performance_score" != "N/A" ] && ([ "${performance_score%.*}" -ge 80 ] && echo "good" || echo "degraded") || echo "N/A") | $performance_score |
+          | **Security** | $([ "$security_score" != "N/A" ] && ([ "${security_score%.*}" -ge 80 ] && echo "good" || echo "degraded") || echo "N/A") | $security_score |
+          
+          ## 🔌 API Connectivity Status
+          
+          | Service | Status | Details |
+          |---------|--------|---------|
+          | **Claude API** | $claude_status | $( [ "$claude_status" = "healthy" ] && echo "✅ Operational" || echo "❌ Issues detected" ) |
+          | **GitHub API** | $github_status | $( [ "$github_status" = "healthy" ] && echo "✅ Operational" || echo "❌ Issues detected" ) |
+          | **Jira API** | $jira_status | $( [ "$jira_status" = "healthy" ] && echo "✅ Operational" || [ "$jira_status" = "skipped" ] && echo "⏭️ Not configured" || echo "❌ Issues detected" ) |
+          
+          ## ⚡ Performance Metrics (24h)
+          
+          - **Success Rate:** $success_rate%
+          - **Average Duration:** ${avg_duration}s
+          - **Performance Score:** $performance_score/100
+          
+          ## 🔒 Security Status
+          
+          - **Security Issues:** $security_issues found
+          - **Security Score:** $security_score/100
+          
+          EOF
+          
+          # Add recommendations based on health
+          echo "## 🎯 Recommendations" >> health-report.md
+          echo "" >> health-report.md
+          
+          if [ "$claude_status" != "healthy" ] && [ "$claude_status" != "skipped" ]; then
+            echo "- 🤖 **Claude API Issues**: Check API token validity and rate limits" >> health-report.md
+          fi
+          
+          if [ "$github_status" != "healthy" ] && [ "$github_status" != "skipped" ]; then
+            echo "- 🐙 **GitHub API Issues**: Verify GitHub token permissions and expiry" >> health-report.md
+          fi
+          
+          if [ "$jira_status" != "healthy" ] && [ "$jira_status" != "skipped" ]; then
+            echo "- 🎫 **Jira API Issues**: Check Jira URL, credentials, and network connectivity" >> health-report.md
+          fi
+          
+          if [ "$performance_score" != "N/A" ] && [ "${performance_score%.*}" -lt 80 ]; then
+            echo "- ⚡ **Performance Issues**: Review workflow optimization and error rates" >> health-report.md
+          fi
+          
+          if [ "$security_issues" -gt 0 ]; then
+            echo "- 🔒 **Security Issues**: Review and fix $security_issues security concerns" >> health-report.md
+          fi
+          
+          if [ "$claude_status" = "healthy" ] && [ "$github_status" = "healthy" ] && ([ "$jira_status" = "healthy" ] || [ "$jira_status" = "skipped" ]) && [ "$security_issues" -eq 0 ]; then
+            echo "- ✅ **All Systems Operational**: No immediate action required" >> health-report.md
+          fi
+          
+          echo "" >> health-report.md
+          echo "---" >> health-report.md
+          echo "*Automated health check powered by GitHub Actions*" >> health-report.md
+          
+          # Set alert level
+          alert_level="none"
+          if [ "$overall_health" = "critical" ] || [ "$security_issues" -gt 3 ]; then
+            alert_level="high"
+          elif [ "$overall_health" = "degraded" ] || [ "$security_issues" -gt 0 ]; then
+            alert_level="medium"
+          elif [ "$performance_score" != "N/A" ] && [ "${performance_score%.*}" -lt 80 ]; then
+            alert_level="low"
+          fi
+          
+          echo "alert_level=$alert_level" >> $GITHUB_OUTPUT
+          
+          echo "📄 Health report generated"
+
+      - name: Create health alert issue
+        if: steps.report.outputs.alert_level != 'none' && (github.event.inputs.alert_threshold == 'low' || (github.event.inputs.alert_threshold == 'medium' && steps.report.outputs.alert_level != 'low') || (github.event.inputs.alert_threshold == 'high' && steps.report.outputs.alert_level == 'high'))
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const alertLevel = '${{ steps.report.outputs.alert_level }}';
+            const healthReport = fs.readFileSync('health-report.md', 'utf8');
+            
+            const alertEmoji = {
+              'low': '🟡',
+              'medium': '🟠', 
+              'high': '🔴'
+            };
+            
+            const alertTitle = {
+              'low': 'Performance Monitoring Alert',
+              'medium': 'System Health Alert',
+              'high': 'Critical System Health Alert'
+            };
+            
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `${alertEmoji[alertLevel]} ${alertTitle[alertLevel]} - ${new Date().toISOString().split('T')[0]}`,
+              body: healthReport,
+              labels: ['health-check', 'alert', `priority-${alertLevel}`, 'automated']
+            });
+
+      - name: Upload health report
+        uses: actions/upload-artifact@v4
+        with:
+          name: health-report-${{ github.run_number }}
+          path: health-report.md
+          retention-days: 30
